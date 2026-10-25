@@ -930,5 +930,12 @@
   "Chưa đọc được dữ liệu sao lưu. Vui lòng thử lại.": "Could not read backup data. Please try again.",
   "Phiên đăng nhập đã hết hạn. Vui lòng tải lại.": "Your session expired. Reload the page.",
   "API xuất không nhận nội dung file từ trình duyệt.": "The export API does not accept file contents from the browser.",
-  "Yêu cầu xác minh chưa hợp lệ.": "Invalid verification request."
+  "Yêu cầu xác minh chưa hợp lệ.": "Invalid verification request.",
+  "Chọn giao diện": "Choose theme",
+  "Giao diện: {0}": "Theme: {0}",
+  "Mặc định": "Default",
+  "Command Line": "Command Line",
+  "Visual Studio Code": "Visual Studio Code",
+  "Excel": "Excel",
+  "Midnight": "Midnight"
 }
