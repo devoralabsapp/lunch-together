@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import {cookies} from 'next/headers';
 import {I18nProvider} from '../components/i18n-provider';
 import {LOCALE_COOKIE,parseLocale,translate} from '../lib/i18n';
+import {ThemeProvider} from '../components/theme-provider';
+import {THEME_COOKIE,parseTheme} from '../lib/theme';
 import "./rice.css";
 import "./interface.css";
 import "./statistics.css";
@@ -11,6 +13,7 @@ import "./payment.css";
 import "./features.css";
 import "./activity.css";
 import "./personal.css";
+import "./themes.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
@@ -29,11 +32,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
+  const preferences=await cookies(),locale=parseLocale(preferences.get(LOCALE_COOKIE)?.value),theme=parseTheme(preferences.get(THEME_COOKIE)?.value);
   return (
-    <html lang={locale}>
+    <html lang={locale} data-theme={theme}>
       <body className="antialiased">
-        <I18nProvider initialLocale={locale}>{children}</I18nProvider>
+        <I18nProvider initialLocale={locale}><ThemeProvider initialTheme={theme}>{children}</ThemeProvider></I18nProvider>
       </body>
     </html>
   );

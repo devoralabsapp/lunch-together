@@ -1,0 +1,92 @@
+/* Only explicit non-default themes override the original workspace. */
+:root{--theme-surface:#fff;--theme-soft:#eff5f0;--theme-radius:12px;--theme-font:'Be Vietnam Pro',system-ui,sans-serif}
+.theme-switcher{display:inline-flex;position:relative;align-items:center;gap:7px;flex-shrink:0;min-height:40px;margin:0;padding:0 9px;border:1px solid var(--line);border-radius:9px;background:var(--theme-surface);color:var(--green);font-size:12px}
+.theme-switcher>svg{pointer-events:none;flex-shrink:0}.theme-switcher select{width:auto;min-width:0;max-width:151px;min-height:38px;margin:0;padding:0 2px;border:0;border-radius:4px;background:transparent;color:inherit;font:inherit;cursor:pointer;box-shadow:none}
+.theme-switcher:focus-within{outline:2px solid var(--green);outline-offset:2px}.theme-switcher select:focus{outline:none;box-shadow:none}.theme-switcher option{background:var(--theme-surface);color:var(--ink)}
+html[data-theme=terminal]{color-scheme:dark;--green:#7be59a;--deep:#b1f6c3;--ink:#e2f3e7;--muted:#a2b9aa;--line:#385342;--cream:#09100c;--pale:#173121;--theme-surface:#101b14;--theme-soft:#17271d;--theme-raised:#1b3022;--theme-radius:2px;--theme-font:'Cascadia Code',Consolas,'Liberation Mono',monospace;--action-bg:#7be59a;--action-ink:#08140c;--warning-bg:#302713;--warning-ink:#f1cf83;--danger-bg:#35201e;--danger-ink:#ffb4aa;--chart-paid:#7be59a;--chart-credit:#80caff;--chart-unpaid:#f1cf83;--chart-grid:#2d4435}
+html[data-theme=code]{color-scheme:dark;--green:#80c3ff;--deep:#bddfff;--ink:#e2e5e9;--muted:#abb4c1;--line:#424650;--cream:#1e1e1e;--pale:#203449;--theme-surface:#252526;--theme-soft:#2d2d30;--theme-raised:#34363c;--theme-radius:4px;--theme-font:'Cascadia Code',Consolas,'Liberation Mono',monospace;--action-bg:#0e639c;--action-ink:#fff;--warning-bg:#352c1b;--warning-ink:#ebc480;--danger-bg:#3c2224;--danger-ink:#ffb4b4;--chart-paid:#6dcba1;--chart-credit:#80c3ff;--chart-unpaid:#e9bd75;--chart-grid:#41444b}
+html[data-theme=excel]{color-scheme:light;--green:#176e43;--deep:#0b5130;--ink:#1f3429;--muted:#53695c;--line:#c9d8ce;--cream:#f1f4f2;--pale:#e0efe5;--theme-surface:#fff;--theme-soft:#edf3ef;--theme-raised:#f6faf7;--theme-radius:2px;--theme-font:Calibri,'Segoe UI',Arial,sans-serif;--action-bg:#107c41;--action-ink:#fff;--warning-bg:#fff5d9;--warning-ink:#77531a;--danger-bg:#fff0ed;--danger-ink:#a33429;--chart-paid:#20824e;--chart-credit:#4284b4;--chart-unpaid:#b88022;--chart-grid:#dce6df}
+html[data-theme=midnight]{color-scheme:dark;--green:#9cc8ff;--deep:#c9dfff;--ink:#e5ecf7;--muted:#a5b6ce;--line:#34445d;--cream:#0d1423;--pale:#20334f;--theme-surface:#151f32;--theme-soft:#1b2940;--theme-raised:#22344e;--theme-radius:14px;--theme-font:'Be Vietnam Pro',system-ui,sans-serif;--action-bg:#2563eb;--action-ink:#fff;--warning-bg:#342c1d;--warning-ink:#f3d08b;--danger-bg:#3b242d;--danger-ink:#ffb8c3;--chart-paid:#78d6b2;--chart-credit:#9cc8ff;--chart-unpaid:#f3d08b;--chart-grid:#32435c}
+html[data-theme]:not([data-theme=classic]) body{background:var(--cream);color:var(--ink);font-family:var(--theme-font)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.sidebar,.topbar,.food-card,.stat,.order-panel,.table-section,.payment-card,.modal,.history-day,.statistics-metric,.statistics-chart-card,.statistics-empty,.pickup-wheel-card,.pickup-result-card,.pickup-how,.pickup-history,.personal-card,.activity-panel,.users-metrics :where(article),.users-confirm,.admin-subnav){background:var(--theme-surface);border-color:var(--line);color:var(--ink);border-radius:var(--theme-radius);box-shadow:none}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.sidebar,.topbar){border-radius:0}
+html[data-theme]:not([data-theme=classic]) :is(input,textarea,select){background-color:var(--theme-surface);border-color:var(--line);color:var(--ink);border-radius:var(--theme-radius)}
+html[data-theme]:not([data-theme=classic]) :is(input,textarea)::placeholder{color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.searchbox,.date-picker,.period-tabs,.quantity,.cart-line,.group-order-details,.finance-confirm,.edit-finance,.personal-import-preview,.personal-import-result,.bank-payee,.bank-transfer-note,.bank-setup-secret,.pickup-winners li,.pickup-history-list article,.activity-details,.activity-payload,.my-orders-payment,.sidebar-note,.payment-hint,.bank-details p,.credit-banner){background:var(--theme-soft);border-color:var(--line);color:var(--ink);border-radius:var(--theme-radius)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.searchbox input,.date-picker select,.quantity input){background:transparent;color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.outline-btn,.row-pay-button,.bank-qr-actions a,.user-role,.pickup-count-badge,.personal-form input[readonly]){background:var(--theme-soft);border-color:var(--line);color:var(--green);border-radius:var(--theme-radius)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.brand-icon){background:var(--action-bg);color:var(--action-ink);border-radius:var(--theme-radius);box-shadow:none}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.icon-btn,.nav-item,.category-tabs button,.period-tabs button,.text-btn,.admin-submenu-button){color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.nav-item,.category-tabs button,.period-tabs button,.icon-btn,.admin-submenu-button):hover{background:var(--theme-raised);color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.nav-item.active,.category-tabs .selected,.period-tabs button[aria-selected=true],.admin-submenu-button[aria-current=page],.surplus-choices button[aria-pressed=true]){background:var(--pale);color:var(--green);border-radius:var(--theme-radius)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.avatar,.stat-icon,.pickup-tag,.nav-item b,.section-heading h2>span,.pickup-revealed li,.user-role.is-admin,.pickup-history-list article>div>span){background:var(--pale);color:var(--green);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.brand,.page-heading h1,.section-heading h2,.personal-card h3,.statistics-chart-heading h2,.pickup-winners strong,.food-info h3,.order-panel-head h2,.bank-details strong,.empty-state h3){color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.page-heading p,.food-info>p,.food-category,.food-info>small,.brand small,.sidebar-note p,.sidebar-note h3,.sidebar-note strong,.sidebar-note>span:last-child,.stat>div>span,.stat strong small,.breadcrumb,.order-footnote,.order-panel label,.table-footer,.order-finance small,.order-cart-lines small,.bank-warning,.group-order-details li small,.pickup-how ol,.bank-payee dt,.pickup-priority,.user-status,.user-email,.user-aliases){color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.food-bottom strong,.order-total strong,.table-footer strong,.summary-total strong,.dish-summary b,.text-btn:hover,.pickup-chosen,.statistics-paid,.personal-integrity-ok){color:var(--green)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(th,thead,.summary-total,.dish-summary,.bank-integrations li,.activity-detail-grid article){background:var(--theme-soft);color:var(--ink);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(td,tr,.table-footer,.order-panel-head,.bank-admin-settings,.restaurant-actions,.group-order-details,.order-total,.workspace-label,.page-footer){border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(td,.activity-time,.activity-detail dd){color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell .activity-detail dl>div{border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.paid-pill.yes,.personal-notice,.pickup-notice,.bank-success,.statistics-loading){background:var(--pale);color:var(--green);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.paid-pill.no,.cutoff,.statistics-metric.outstanding,.statistics-warnings,.statistics-integrity-note,.personal-integrity-warning){background:var(--warning-bg);color:var(--warning-ink);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.cutoff strong,.cutoff span,.finance-due,.finance-refund,.statistics-unpaid,.statistics-metric.outstanding>strong){color:var(--warning-ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell .cutoff.locked{background:var(--theme-soft);color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell .cutoff.locked :is(strong,span){color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.error-banner,.bank-revoke){background:var(--danger-bg);color:var(--danger-ink);border-color:var(--danger-ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.organization-delete,.user-status.is-blocked){color:var(--danger-ink)!important}
+html[data-theme]:not([data-theme=classic]) .app-shell .organization-delete-confirm{color:#fff!important}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero{background:var(--theme-soft);border-color:var(--line);border-radius:var(--theme-radius)}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero :is(h2,em){color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero :is(.hero-copy>p,.hero-meta,.hero-meta b){color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero-tag{background:var(--pale);color:var(--green);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero-art:after{background:linear-gradient(90deg,var(--theme-soft),transparent 45%)}
+html[data-theme]:not([data-theme=classic]) .app-shell .hero-art>img{mix-blend-mode:normal}
+html[data-theme]:not([data-theme=classic]) .app-shell .food-badge{background:var(--theme-surface);color:var(--ink);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell .food-image{background:var(--theme-soft)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.order-panel-head,.hero-sticker){background:var(--theme-soft);border-color:var(--line);color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.hero-sticker strong,.hero-sticker span,.empty-order h3,.empty-order strong){color:var(--ink)}
+html[data-theme]:not([data-theme=classic]) .app-shell .empty-order>svg{color:var(--green)}
+html[data-theme]:not([data-theme=classic]) .app-shell .empty-order p{color:var(--muted)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.order-panel-head>span:last-child,.empty-order>span,.payment-hint>span,.toast,.selected-dish){background:var(--theme-soft);color:var(--green);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(pre,.activity-expanded-row>td,.activity-detail-block,.activity-json){background:var(--theme-soft);color:var(--ink);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell .pickup-wheel-center{color:#216447}
+/* A QR is an optical artifact, not a UI surface. Keep its original pixels. */
+html[data-theme]:not([data-theme=classic]) .payment-qr{background:#fff;filter:none!important;padding:8px;border-radius:8px}
+html[data-theme]:not([data-theme=classic]) .statistics-legend .paid-color{background:var(--chart-paid)}
+html[data-theme]:not([data-theme=classic]) .statistics-legend .credit-color{background:var(--chart-credit)}
+html[data-theme]:not([data-theme=classic]) .statistics-legend .unpaid-color{background:var(--chart-unpaid)}
+html[data-theme]:not([data-theme=classic]) :is(.signin,.restaurant-share-page){background:var(--theme-surface);color:var(--ink);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .restaurant-share-page th{background:var(--theme-soft);color:var(--green)}
+html[data-theme]:not([data-theme=classic]) .language-switcher{background:var(--theme-surface);color:var(--green);border-color:var(--line)}
+html[data-theme]:not([data-theme=classic]) .app-shell :is(.brand,.nav-caption,h1,h2,h3){font-family:var(--theme-font)}
+html:is([data-theme=terminal],[data-theme=code]) .app-shell h1{letter-spacing:-1px;font-size:clamp(25px,2.3vw,33px)}
+html[data-theme=terminal]:not([data-theme=classic]) .app-shell .brand:before{content:'>_';font-size:19px;color:var(--green)}
+html[data-theme=terminal]:not([data-theme=classic]) .app-shell .brand-icon{display:none}
+html[data-theme=terminal]:not([data-theme=classic]) .app-shell .hero-art{opacity:.6}
+html[data-theme=terminal]:not([data-theme=classic]) .app-shell .eyebrow:before{content:'$';color:var(--green);font-weight:700}
+html[data-theme=terminal]:not([data-theme=classic]) .app-shell .table-section{border-style:solid}
+html[data-theme=code]:not([data-theme=classic]) .app-shell .sidebar{border-right:3px solid #007acc}
+html[data-theme=code]:not([data-theme=classic]) .app-shell .topbar{border-top:3px solid #007acc}
+html[data-theme=code]:not([data-theme=classic]) .app-shell .nav-item.active{box-shadow:inset 3px 0 #007acc}
+html[data-theme=code]:not([data-theme=classic]) .app-shell .brand-icon{background:#007acc;color:#fff}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell .topbar{background:#107c41;color:#fff;border-bottom-color:#0b6333}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell .topbar :is(.breadcrumb,.breadcrumb strong,.breadcrumb>span,.icon-btn){color:#fff}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell .topbar :is(.theme-switcher,.language-switcher,.outline-btn){background:#fff;color:#176e43}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell :is(th,td){border:1px solid var(--line)}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell th{background:#e4eee7;color:#234d34;font-weight:700}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell tbody tr:nth-child(even){background:#f3f8f4}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell .main-content{background-image:linear-gradient(#dfe8e140 1px,transparent 1px),linear-gradient(90deg,#dfe8e140 1px,transparent 1px);background-size:28px 28px}
+html[data-theme=excel]:not([data-theme=classic]) .app-shell h1{font-family:Calibri,'Segoe UI',sans-serif;letter-spacing:-.6px}
+html[data-theme=midnight]:not([data-theme=classic]) .app-shell .hero{background:linear-gradient(125deg,#1a2d4b,#17233b)}
+html[data-theme=midnight]:not([data-theme=classic]) .app-shell .nav-item.active{box-shadow:inset 3px 0 #82b8ff}
+@media(max-width:760px){
+ .theme-switcher{width:38px;min-height:38px;padding:0;justify-content:center;flex:0 0 38px}
+ .theme-switcher select{position:absolute;inset:0;max-width:none;width:100%;height:100%;min-height:38px;padding:0;border:0;appearance:none;color:transparent;font-size:16px}
+ .theme-switcher select option{color:var(--ink)}
+ html[data-theme] .theme-switcher select{color:transparent;background:transparent}
+ .app-shell .top-actions{gap:6px;flex-wrap:wrap}
+ html[data-theme=excel]:not([data-theme=classic]) .app-shell .breadcrumb:before{color:#fff}
+ html[data-theme=code]:not([data-theme=classic]) .app-shell .sidebar{border-right:0;border-top-color:#007acc}
+ html:is([data-theme=terminal],[data-theme=code]) .app-shell .top-actions{font-family:system-ui,sans-serif}
+}
+@media print{html[data-theme] body{background:#fff!important;color:#111!important}html[data-theme] .app-shell :is(.table-section,.stat,.personal-card,th,td){background:#fff!important;color:#111!important}html[data-theme] .theme-switcher{display:none}}
