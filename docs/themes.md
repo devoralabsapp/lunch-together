@@ -13,10 +13,16 @@ The selection applies immediately and is remembered in this browser for one year
 
 Theme changes affect presentation only. No Firestore Rules, indexes, environment variables or account changes are required. Meal images and payment QR pixels retain their original colors. Chart colors follow the selected palette.
 
+Text sizes use a shared CSS offset: **Excel +2px**, **all other themes +1px**, including chart and wheel labels. Inherited sizes and hidden zero-size labels are left intact so nested text does not grow repeatedly. Card dimensions and page zoom are unchanged.
+
+Excel loads [Carlito](https://github.com/google/fonts/tree/main/ofl/carlito); Command Line and Visual Studio Code load [Roboto Mono](https://github.com/google/fonts/tree/main/ofl/robotomono). Both support Vietnamese. Using webfonts instead of OS-specific Calibri/Consolas reduces Windows/macOS fallback differences. Safari automatic text resizing is normalized to 100%; browser zoom remains available. Physical apparent size can still differ with browser zoom, display scaling and font rendering. macOS has not been tested directly on a Mac in this change.
+
 ## Tiếng Việt
 
 Bấm biểu tượng bảng màu cạnh bộ chọn ngôn ngữ trên thanh đầu trang để đổi giao diện. Có **Mặc định**, **Command Line**, **Visual Studio Code**, **Excel** và **Midnight**. Trên điện thoại, bộ chọn thu gọn thành biểu tượng bảng màu.
 
 Command Line dùng nền đen, các vùng xám đậm và chữ trắng kiểu terminal. Các cảnh báo và biểu đồ vẫn giữ màu để dễ phân biệt trạng thái.
+
+Cỡ chữ Excel tăng **2 px**, các giao diện còn lại tăng **1 px**, gồm cả nhãn biểu đồ và vòng quay. Các theme dùng chung webfont giữa Windows/macOS để hạn chế lệch font dự phòng; vẫn cho phép phóng to trình duyệt. Chưa kiểm tra trực tiếp trên máy Mac; mức zoom, thiết lập màn hình và cách làm mịn chữ vẫn có thể làm chữ trông khác nhau.
 
 Giao diện Mặc định vẫn là lựa chọn ban đầu. Lựa chọn được ghi nhớ riêng trên trình duyệt trong một năm; trình duyệt mới bắt đầu bằng Mặc định. Nếu trình duyệt chặn cookie, bạn vẫn đổi được giao diện trong trang đang mở. Không cần cấu hình Firebase hay tài khoản thêm.
