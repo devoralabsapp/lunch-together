@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400..900&display=swap');
+
+/* An opt-in palette layered onto the existing workspace and theme provider. */
+html[data-theme=retro] {
+  color-scheme: light;
+  --retro-ink: #171717;
+  --retro-cream: #fff8e9;
+  --retro-paper: #fffdf7;
+  --retro-yellow: #ffdf57;
+  --retro-pink: #ffb9d2;
+  --retro-blue: #b4ddf4;
+  --retro-mint: #b5edcc;
+  --retro-coral: #ffb2a6;
+  --retro-border: 2px solid var(--retro-ink);
+  --retro-shadow: 4px 4px 0 var(--retro-ink);
+  --retro-shadow-small: 2px 2px 0 var(--retro-ink);
+  --retro-radius: 18px;
+  --retro-pill: 999px;
+  --green: var(--retro-ink);
+  --deep: var(--retro-ink);
+  --ink: var(--retro-ink);
+  --muted: #4d4b43;
+  --line: var(--retro-ink);
+  --cream: var(--retro-cream);
+  --pale: var(--retro-mint);
+  --theme-surface: var(--retro-paper);
+  --theme-soft: #fff0c7;
+  --theme-raised: var(--retro-pink);
+  --theme-radius: var(--retro-radius);
+  --theme-font: 'Nunito', 'Be Vietnam Pro', Arial, sans-serif;
+  --action-bg: var(--retro-yellow);
+  --action-ink: var(--retro-ink);
+  --warning-bg: #fff0b8;
+  --warning-ink: #674315;
+  --danger-bg: #ffe0df;
+  --danger-ink: #982833;
+  --chart-paid: #55ad86;
+  --chart-credit: #a774c2;
+  --chart-unpaid: #e1ac26;
+  --chart-grid: #d9d1c0;
+}
+
+html[data-theme=retro]:not([data-theme=classic]) body {
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+/* The same card treatment covers meal, finance, administration and profile views. */
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.food-card,.stat,.order-panel,.table-section,.payment-card,.modal,.history-day,.statistics-metric,.statistics-chart-card,.statistics-empty,.pickup-wheel-card,.pickup-result-card,.pickup-how,.pickup-history,.personal-card,.activity-panel,.users-metrics :where(article),.users-confirm,.admin-subnav) {
+  border: var(--retro-border);
+  border-radius: var(--retro-radius);
+  box-shadow: var(--retro-shadow);
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.sidebar,.topbar) {
+  background: var(--retro-paper);
+  border-color: var(--retro-ink);
+  border-radius: 0;
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .sidebar {border-right-width:2px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .topbar {border-bottom-width:2px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(h1,h2,h3,h4,.brand,.stat strong,.statistics-metric>strong) {
+  font-family: var(--theme-font);
+  font-weight: 900;
+  color: var(--retro-ink);
+  letter-spacing: -.035em;
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.eyebrow,.food-category,.nav-caption) {font-weight:900;color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .brand-icon {
+  background: var(--retro-mint);
+  color: var(--retro-ink);
+  border: var(--retro-border);
+  border-radius: 14px;
+  box-shadow: var(--retro-shadow-small);
+  transform: rotate(-5deg);
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .nav-item {
+  border: 2px solid transparent;
+  font-weight: 800;
+  border-radius: 12px;
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell button.nav-item.active {
+  background: var(--retro-yellow);
+  border-color: var(--retro-ink);
+  box-shadow: var(--retro-shadow-small);
+  color: var(--retro-ink);
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.nav-item b,.avatar,.stat-icon,.pickup-tag,.user-role,.section-heading h2>span) {
+  border: var(--retro-border);
+  background: var(--retro-paper);
+  color: var(--retro-ink);
+  font-weight: 800;
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .admin-submenu-button[aria-current=page] {background:var(--retro-blue);border-radius:9px}
+
+/* Pills and pressable controls use hard shadows instead of soft glows. */
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.outline-btn,.row-pay-button,.bank-qr-actions a,.category-tabs button,.period-tabs button,.restaurant-action-buttons button) {
+  border: var(--retro-border);
+  border-radius: var(--retro-pill);
+  box-shadow: var(--retro-shadow-small);
+  color: var(--retro-ink);
+  font-weight: 900;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.row-pay-button) {background:var(--retro-yellow)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .food-bottom button {border:var(--retro-border);border-radius:var(--retro-pill);box-shadow:var(--retro-shadow-small);background:var(--retro-mint);color:var(--retro-ink);transition:transform 140ms ease,box-shadow 140ms ease}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.outline-btn,.bank-qr-actions a) {background:var(--retro-paper)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.category-tabs,.period-tabs) {gap:9px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.category-tabs button,.period-tabs button) {background:var(--retro-paper)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.category-tabs .selected,.period-tabs button[aria-selected=true],.surplus-choices button[aria-pressed=true]) {background:var(--retro-pink);color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) :is(.theme-switcher,.language-switcher) {
+  border: var(--retro-border);
+  border-radius: var(--retro-pill);
+  background: var(--retro-paper);
+  color: var(--retro-ink);
+}
+html[data-theme=retro]:not([data-theme=classic]) .theme-switcher select {max-width:225px}
+html[data-theme=retro]:not([data-theme=classic]) :is(input,textarea,select) {
+  border-width: 2px;
+  border-color: var(--retro-ink);
+  border-radius: 12px;
+  background-color: var(--retro-paper);
+  color: var(--retro-ink);
+}
+html[data-theme=retro]:not([data-theme=classic]) :is(.theme-switcher,.language-switcher) select {border:0;background:transparent}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.searchbox,.date-picker,.quantity) {border:var(--retro-border);border-radius:12px;background:var(--retro-paper)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.searchbox input,.date-picker select,.quantity input) {border:0;box-shadow:none}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.outline-btn,.row-pay-button,button,input,textarea,select,a):focus-visible {
+  outline: 3px solid var(--retro-ink);
+  outline-offset: 4px;
+}
+html[data-theme=retro]:not([data-theme=classic]) :is(input,textarea,select):focus {box-shadow:0 0 0 3px var(--retro-blue)}
+
+/* Pastel blocks echo the reference without changing the application layout. */
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .hero {
+  background: var(--retro-yellow);
+  border: var(--retro-border);
+  border-radius: 22px;
+  box-shadow: var(--retro-shadow);
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .hero :is(h2,em,.hero-copy>p,.hero-meta,.hero-meta b) {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .hero h2 {font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .hero-art:after {background:linear-gradient(90deg,var(--retro-yellow),transparent 50%)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.hero-tag,.food-badge) {background:var(--retro-paper);border:var(--retro-border);color:var(--retro-ink);font-weight:800}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .hero-sticker {background:var(--retro-pink);border:var(--retro-border);box-shadow:var(--retro-shadow-small);transform:rotate(-6deg)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.stat:nth-child(4n+1),.statistics-metric:nth-child(4n+1)) {background:var(--retro-blue)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.stat:nth-child(4n+2),.statistics-metric:nth-child(4n+2)) {background:var(--retro-yellow)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.stat:nth-child(4n+3),.statistics-metric:nth-child(4n+3)) {background:var(--retro-mint)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.stat:nth-child(4n+4),.statistics-metric:nth-child(4n+4)) {background:var(--retro-pink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.statistics-metric.outstanding>strong,.stat>div>span,.stat strong small) {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .food-image {border-bottom:var(--retro-border)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .summary-dish-icon {background:var(--retro-paper);border:var(--retro-border);color:var(--retro-ink);border-radius:10px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .dish-summary>div {border-color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .food-badge {border-radius:var(--retro-pill)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.food-info h3,.food-bottom strong) {font-weight:900;color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .order-panel-head {background:var(--retro-mint);border-bottom:var(--retro-border);border-radius:16px 16px 0 0}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.cart-line,.selected-dish,.my-orders-payment,.summary-total) {border:var(--retro-border);background:var(--retro-blue);border-radius:12px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.sidebar-note,.payment-hint,.bank-transfer-note) {border:var(--retro-border);background:var(--retro-pink);border-radius:14px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.guest-banner,.credit-banner,.personal-notice,.pickup-notice,.bank-success) {border:var(--retro-border);background:var(--retro-mint);border-radius:14px;color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.cutoff,.finance-confirm,.edit-finance,.personal-integrity-warning) {border:var(--retro-border);border-radius:12px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.paid-pill,.user-status.is-blocked) {border:var(--retro-border);border-radius:var(--retro-pill);font-weight:800}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .paid-pill.yes {background:var(--retro-mint);color:#184d36}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .paid-pill.no {background:var(--retro-yellow);color:#543d0b}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.error-banner,.bank-revoke) {border:var(--retro-border);border-radius:12px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .toast {border:var(--retro-border);box-shadow:var(--retro-shadow);background:var(--retro-yellow);color:var(--retro-ink)}
+
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(th,thead,.dish-summary,.bank-integrations li,.activity-detail-grid article) {background:var(--retro-blue);color:var(--retro-ink);border-color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(th,thead) {font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(th,td) {border-bottom-color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell tbody tr:nth-child(even):not(.activity-expanded-row) {background:#fff4d6}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.table-footer,.activity-footer) {border-color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .table-footer {background:var(--retro-paper);border-radius:0 0 16px 16px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.pickup-winners li,.pickup-history-list article,.personal-import-preview,.personal-import-result,.bank-payee) {border:var(--retro-border);background:var(--theme-soft);border-radius:12px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-winners li:nth-child(even) {background:var(--retro-pink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-result-card {background:var(--retro-mint)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-how {background:var(--retro-blue)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>circle {fill:var(--retro-paper);stroke:var(--retro-ink);stroke-width:2px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g :is(path,circle) {stroke:var(--retro-ink);stroke-width:1.5px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g:nth-of-type(4n+1) :is(path,circle) {fill:var(--retro-yellow)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g:nth-of-type(4n+2) :is(path,circle) {fill:var(--retro-pink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g:nth-of-type(4n+3) :is(path,circle) {fill:var(--retro-blue)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g:nth-of-type(4n+4) :is(path,circle) {fill:var(--retro-mint)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel svg>g>text {fill:var(--retro-ink);font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel-center {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-wheel {filter:none}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-pointer {border-top-color:var(--retro-ink);filter:none}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .pickup-result-empty {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .activity-expanded {border:var(--retro-border);border-radius:12px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.activity-expanded-row>td,.activity-detail-block,.activity-json) {background:var(--theme-soft)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .recharts-bar-rectangle path {stroke:var(--retro-ink);stroke-width:1.5px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .recharts-default-tooltip {border:var(--retro-border)!important;box-shadow:var(--retro-shadow-small)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-card :is(p,dt,dd,small,.text-btn) {color:var(--muted)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-card dl>div {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-card .green-text {color:#185a3b!important}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-card>p strong {color:var(--retro-ink);font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-progress {height:12px;border:var(--retro-border);background:var(--retro-paper);border-radius:8px}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .payment-progress>span {background:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .history-day :is(strong,small,span) {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell .history-day.current {background:var(--retro-yellow)}
+
+/* Shared restaurant pages and sign-in use the same visual tokens. */
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page {border:var(--retro-border);border-radius:var(--retro-radius);box-shadow:var(--retro-shadow);font-family:var(--theme-font)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page :is(th,.outline-btn) {background:var(--retro-yellow);border:var(--retro-border);color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page .outline-btn {border-radius:var(--retro-pill);box-shadow:var(--retro-shadow-small)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page :is(h1,.share-brand,.eyebrow) {font-weight:900;color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page :is(th,td) {font-size:calc(14px + var(--text-size-offset,1px));color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page td strong {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page th {font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .signin {background:var(--retro-cream);font-family:var(--theme-font)}
+html[data-theme=retro]:not([data-theme=classic]) .signin :is(h1,p) {color:var(--retro-ink)}
+html[data-theme=retro]:not([data-theme=classic]) .signin h1 {font-weight:900}
+html[data-theme=retro]:not([data-theme=classic]) .signin :is(.brand-icon,.primary) {border:var(--retro-border);background:var(--retro-yellow);color:var(--retro-ink);box-shadow:var(--retro-shadow)}
+html[data-theme=retro]:not([data-theme=classic]) .signin .primary {border-radius:var(--retro-pill)}
+/* QR codes keep their white quiet zone and original image pixels. */
+html[data-theme=retro] .payment-qr {background:#fff;filter:none!important;box-shadow:none}
+
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.outline-btn,.row-pay-button,.food-bottom button,.category-tabs button,.period-tabs button):not(:disabled):hover {
+    transform: translate(-1px,-1px);
+    box-shadow: var(--retro-shadow);
+    background: var(--retro-pink);
+  }
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell .food-card {transition:transform 160ms ease,box-shadow 160ms ease}
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell .food-card:hover {transform:translateY(-2px);box-shadow:5px 6px 0 var(--retro-ink)}
+}
+html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.outline-btn,.row-pay-button,.food-bottom button,.category-tabs button,.period-tabs button):not(:disabled):active {transform:translate(2px,2px);box-shadow:none}
+@media (max-width:1100px) {html[data-theme=retro]:not([data-theme=classic]) .theme-switcher select {max-width:155px}}
+@media (max-width:760px) {
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell .sidebar {border-right:0;border-top:var(--retro-border);box-shadow:0 -3px 0 var(--retro-ink)}
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell .nav-item {border-radius:10px;padding-inline:2px}
+  html[data-theme=retro]:not([data-theme=classic]) .theme-switcher select {max-width:none;width:100%;background:transparent;color:transparent}
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.category-tabs,.period-tabs) {padding-bottom:5px}
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.modal,.personal-card,.activity-panel) {box-shadow:3px 3px 0 var(--retro-ink)}
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.food-card,.primary,.order-submit,.outline-btn,.row-pay-button,.food-bottom button,.category-tabs button,.period-tabs button) {transition:none}
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.primary,.order-submit,.outline-btn,.row-pay-button,.food-bottom button,.category-tabs button,.period-tabs button):active {transform:none}
+}
+@media print {
+  html[data-theme=retro]:not([data-theme=classic]) .app-shell :is(.table-section,.stat,.personal-card,.activity-panel,.modal),
+  html[data-theme=retro]:not([data-theme=classic]) .restaurant-share-page {box-shadow:none!important;background:#fff!important;border-color:#111}
+}
