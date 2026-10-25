@@ -8,6 +8,7 @@ Choose the palette icon beside the language selector in the top bar. The origina
 | Visual Studio Code | Charcoal surfaces, blue accents, monospace type |
 | Excel | Green toolbar, light surfaces, spreadsheet-style table borders |
 | Midnight | Navy surfaces, blue accents, rounded cards |
+| Playful Retro Neo-Brutalism | Warm cream, pastel yellow/pink/blue/mint, black outlines and hard offset shadows |
 
 The selection applies immediately and is remembered in this browser for one year using the `lunch-together-theme-v1` cookie. A new browser starts with Default. If cookies are blocked, switching still works in the current page. The server validates the theme identifier and renders the chosen theme on reload. On small screens, use the palette icon to open the same selector.
 
@@ -17,9 +18,17 @@ Text sizes use a shared CSS offset: **Excel +2px**, **all other themes +1px**, i
 
 Excel loads [Carlito](https://github.com/google/fonts/tree/main/ofl/carlito); Command Line and Visual Studio Code load [Roboto Mono](https://github.com/google/fonts/tree/main/ofl/robotomono). Both support Vietnamese. Using webfonts instead of OS-specific Calibri/Consolas reduces Windows/macOS fallback differences. Safari automatic text resizing is normalized to 100%; browser zoom remains available. Physical apparent size can still differ with browser zoom, display scaling and font rendering. macOS has not been tested directly on a Mac in this change.
 
+### Playful Retro Neo-Brutalism
+
+The `retro` identifier follows the same selector, validated cookie and server-rendering mechanism. Its styles live in `app/retro-theme.css`; every selector is scoped to `html[data-theme=retro]`. Reusable `--retro-*` tokens define paper, pastels, 2px black borders, 4px hard shadows, 18px cards and pill controls. [Nunito](https://github.com/google/fonts/tree/main/ofl/nunito) supplies the rounded Vietnamese/English typography, keeping the existing +1px text offset.
+
+The palette covers meals, orders, payments, statistics, pickup, history, profiles, administration, activity logs and restaurant shares. Food images and payment QR codes retain their original pixels. Hover and pressed effects use transforms without changing layout; reduced-motion preferences disable these motion effects. The original themes and Default selection remain available unchanged.
+
 ## Tiếng Việt
 
-Bấm biểu tượng bảng màu cạnh bộ chọn ngôn ngữ trên thanh đầu trang để đổi giao diện. Có **Mặc định**, **Command Line**, **Visual Studio Code**, **Excel** và **Midnight**. Trên điện thoại, bộ chọn thu gọn thành biểu tượng bảng màu.
+Bấm biểu tượng bảng màu cạnh bộ chọn ngôn ngữ trên thanh đầu trang để đổi giao diện. Có **Mặc định**, **Command Line**, **Visual Studio Code**, **Excel**, **Midnight** và **Playful Retro Neo-Brutalism**. Trên điện thoại, bộ chọn thu gọn thành biểu tượng bảng màu.
+
+Theme Retro dùng nền kem ấm, các mảng vàng/hồng/xanh dương/mint, viền đen 2 px và bóng cứng lệch 4 px. Font Nunito tròn, đậm; thẻ bo góc và nút dạng viên thuốc. Hiệu ứng rê chuột/nhấn nút được giảm khi người dùng bật tùy chọn giảm chuyển động. Theme này dùng mức tăng chữ 1 px hiện có và không thay đổi chức năng của ứng dụng.
 
 Command Line dùng nền đen, các vùng xám đậm và chữ trắng kiểu terminal. Các cảnh báo và biểu đồ vẫn giữ màu để dễ phân biệt trạng thái.
 

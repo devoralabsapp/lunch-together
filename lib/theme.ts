@@ -5,6 +5,7 @@ export const themes=[
  {id:'code',label:'Visual Studio Code'},
  {id:'excel',label:'Excel'},
  {id:'midnight',label:'Midnight'},
+ {id:'retro',label:'Playful Retro Neo-Brutalism'},
 ] as const;
 export type Theme=typeof themes[number]['id'];
 export function parseTheme(value:unknown):Theme{return themes.find(theme=>theme.id===value)?.id||'classic';}

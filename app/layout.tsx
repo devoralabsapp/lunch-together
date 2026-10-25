@@ -14,6 +14,7 @@ import "./features.css";
 import "./activity.css";
 import "./personal.css";
 import "./themes.css";
+import "./retro-theme.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
