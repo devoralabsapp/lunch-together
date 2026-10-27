@@ -938,5 +938,10 @@
   "Visual Studio Code": "Visual Studio Code",
   "Excel": "Excel",
   "Midnight": "Midnight",
-  "Playful Retro Neo-Brutalism": "Playful Retro Neo-Brutalism"
+  "Playful Retro Neo-Brutalism": "Playful Retro Neo-Brutalism",
+  "1 suất: {0}": "1 serving: {0}",
+  "{0} suất: {1}": "{0} servings: {1}",
+  "1 suất không có ghi chú": "1 serving without notes",
+  "{0} suất không có ghi chú": "{0} servings without notes",
+  "(tiếp theo)": "(continued)"
 }
