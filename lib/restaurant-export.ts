@@ -1,5 +1,6 @@
 import {formatMoney,formatLongDate,formatTimestamp,translate,type Locale} from './i18n';
 import {parseRestaurantSummary,restaurantTotals,type RestaurantSummary} from './restaurant-summary';
+import {restaurantDisplayRows,restaurantNoteLines} from './restaurant-presentation';
 
 function wrap(ctx:CanvasRenderingContext2D,text:string,width:number){
  const lines:string[]=[];let line='';
@@ -13,13 +14,25 @@ export async function restaurantCanvases(input:RestaurantSummary,locale:Locale){
  function text(value:string,x:number,top:number,size=25,color='#203d32',weight='400',align:CanvasTextAlign='left'){ctx.font=`${weight} ${size}px Arial, sans-serif`;ctx.fillStyle=color;ctx.textAlign=align;ctx.fillText(value,x,top);ctx.textAlign='left';}
  function page(){canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;ctx=canvas.getContext('2d')!;if(!ctx)throw new Error('Chưa xuất được ảnh. Vui lòng thử trình duyệt khác.');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#255c46';ctx.fillRect(0,0,width,22);text(t('Cơm Nhà').toLocaleUpperCase(locale),65,95,27,'#31775d','700');text(t('Danh sách gửi nhà hàng'),65,162,43,'#203d32','700');text(formatLongDate(locale,summary.date),65,210,25,'#61746a');text(t('Bản chốt lúc ')+formatTimestamp(locale,summary.generatedAt),65,252,21,'#61746a');ctx.fillStyle='#edf4ee';ctx.fillRect(60,285,1120,56);text(t('Món ăn / ghi chú'),78,322,23,'#315b46','700');text(t('Số suất'),770,322,23,'#315b46','700','right');text(t('Đơn giá'),963,322,23,'#315b46','700','right');text(t('Thành tiền'),1160,322,23,'#315b46','700','right');y=365;pages.push(canvas);}
  page();
- for(const row of summary.rows){
-  ctx!.font='600 26px Arial, sans-serif';const names=wrap(ctx!,row.dish,620);ctx!.font='400 22px Arial, sans-serif';const notes=row.note?wrap(ctx!,row.note,620):[],rowHeight=Math.max(74,names.length*34+notes.length*29+28);
-  if(y+rowHeight>1545)page();
-  names.forEach((line,i)=>text(line,78,y+i*34,26,'#203d32','600'));
-  notes.forEach((line,i)=>text(line,78,y+names.length*34+i*29,22,'#61746a'));
-  text(String(row.quantity),770,y,26,'#203d32','700','right');text(money(row.unitPrice),963,y,23,'#50675b','400','right');text(money(row.quantity*row.unitPrice),1160,y,24,'#203d32','600','right');
-  y+=rowHeight;ctx!.strokeStyle='#e1e9e3';ctx!.beginPath();ctx!.moveTo(65,y-32);ctx!.lineTo(1175,y-32);ctx!.stroke();
+ for(const row of restaurantDisplayRows(summary)){
+  ctx!.font='600 26px Arial, sans-serif';const names=wrap(ctx!,row.dish,620);ctx!.font='400 22px Arial, sans-serif';const notes=restaurantNoteLines(row,locale).map(note=>wrap(ctx!,note,620));
+  const rowHeight=Math.max(74,names.length*34+notes.reduce((n,lines)=>n+lines.length*29,0)+28),minimumHeight=Math.max(74,names.length*34+(notes[0]?.length||0)*29+28);
+  if(y+minimumHeight>1545||(rowHeight<=1180&&y+rowHeight>1545))page();
+  let segmentStart=y;
+  function heading(continued=false){
+   ctx!.font='600 26px Arial, sans-serif';const lines=continued?wrap(ctx!,row.dish+' '+t('(tiếp theo)'),620):names;
+   lines.forEach((line,i)=>text(line,78,y+i*34,26,'#203d32','600'));
+   if(!continued){text(String(row.quantity),770,y,26,'#203d32','700','right');text(money(row.unitPrice),963,y,23,'#50675b','400','right');text(money(row.quantity*row.unitPrice),1160,y,24,'#203d32','600','right');}
+   y+=lines.length*34;
+  }
+  function finishSegment(){y=Math.max(segmentStart+74,y+28);ctx!.strokeStyle='#e1e9e3';ctx!.beginPath();ctx!.moveTo(65,y-32);ctx!.lineTo(1175,y-32);ctx!.stroke();}
+  heading();
+  for(const lines of notes){
+   // Keep each counted note together; repeat dish context when a long list spans pages.
+   if(y+lines.length*29+28>1545){finishSegment();page();segmentStart=y;heading(true);}
+   lines.forEach((line,i)=>text(line,78,y+i*29,22,'#61746a'));y+=lines.length*29;
+  }
+  finishSegment();
  }
  if(y>1445)page();const totals=restaurantTotals(summary);ctx!.fillStyle='#edf4ee';ctx!.fillRect(60,y+4,1120,104);text(t('Tổng cộng'),78,y+68,27,'#255c46','700');text(String(totals.quantity),770,y+68,29,'#255c46','700','right');text(money(totals.amount),1160,y+68,31,'#255c46','700','right');
  pages.forEach((pageCanvas,i)=>{ctx=pageCanvas.getContext('2d')!;text(t('Chỉ gồm món, số lượng và ghi chú; không có thông tin thanh toán cá nhân.'),65,1650,20,'#7a8b80');text(`${i+1} / ${pages.length}`,1175,1695,20,'#7a8b80','400','right');});
