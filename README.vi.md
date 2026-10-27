@@ -8,6 +8,17 @@ Bản mã nguồn công khai để bàn giao vận hành và phát triển. Xem 
 
 Web Next.js 16, React 19, Firebase Authentication và Cloud Firestore Standard. Vercel phục vụ giao diện; trình duyệt đọc/ghi bằng Firebase Web SDK và Firestore Security Rules. Quyền đọc dữ liệu đặt cơm dùng chung cho cả nhóm; quyền ghi tách theo chủ đơn và quản trị viên.
 
+![Đặt cơm với giao diện Playful Retro Neo-Brutalism và dữ liệu mẫu](docs/images/retro-menu.vi.jpg)
+
+*Giao diện hiện tại với theme **Playful Retro Neo-Brutalism**, chụp trực tiếp từ ứng dụng bằng dữ liệu giả trên Firebase Emulator cục bộ. Chọn theme này ở bộ chọn giao diện; ngôn ngữ mặc định vẫn là tiếng Việt.*
+
+<details>
+<summary>Xem thống kê với giao diện Retro</summary>
+
+![Thống kê tiền cơm với giao diện Playful Retro Neo-Brutalism và dữ liệu mẫu](docs/images/retro-statistics.vi.jpg)
+
+</details>
+
 ## Tính năng
 
 - Hồ sơ cá nhân, công ty/phòng ban linh hoạt và xuất/nhập JSON của chính tài khoản; dữ liệu tiền giữ lại để quản trị đối soát.

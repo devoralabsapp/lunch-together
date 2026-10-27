@@ -6,9 +6,16 @@ Lunch Together helps a team order lunch together, track who has paid, and share 
 
 This is an early-stage, MIT-licensed application maintained by [devoralabsapp](https://github.com/devoralabsapp). Contributions, bug reports, and translations are welcome. The public repository contains application source and sample data; each operator supplies their own Firebase project and deployment configuration.
 
-![English payment statistics with fictitious sample orders](docs/images/statistics.en.jpg)
+![Lunch ordering in the Playful Retro Neo-Brutalism theme with sample data](docs/images/retro-menu.en.jpg)
 
-*English interface preview using fictitious orders in local Firebase emulators.*
+*Current English interface in the optional **Playful Retro Neo-Brutalism** theme, captured from the application with fictitious orders in local Firebase emulators. Vietnamese remains the default language; choose this theme from the theme selector.*
+
+<details>
+<summary>Payment statistics in the Retro theme</summary>
+
+![Payment statistics in the Playful Retro Neo-Brutalism theme with sample data](docs/images/retro-statistics.en.jpg)
+
+</details>
 
 ## What it does
 
