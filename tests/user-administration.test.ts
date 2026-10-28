@@ -97,6 +97,20 @@ test('administrators edit profiles and server deletes only accounts with no orde
   };
   const response=await api(uid(racing));globalThis.fetch=rawFetch;assert.equal(checked,true);assert.equal(response.status,200,JSON.stringify(await response.json()));
  });
+ await t.test('a concurrent administrator lock is never released by a request that did not acquire it',async()=>{
+  const replaced=await client('sample-replaced-lock');await syncUserProfile(replaced,'Sample concurrent lock');let changed=false;
+  globalThis.fetch=async(input,init)=>{
+   const response=await rawFetch(input,init);
+   if(!changed&&String(input).endsWith(':commit')&&typeof init?.body==='string'){
+    const writes=JSON.parse(init.body).writes||[];
+    if(response.ok&&writes.some((w:{update?:{name?:string;fields?:{deletionToken?:unknown}}})=>w.update?.name?.endsWith('/userAccess/'+uid(replaced))&&w.update.fields?.deletionToken)){
+     changed=true;await setDoc(doc(admin.db,'userAccess',uid(replaced)),{blocked:true,deletionToken:'b'.repeat(32),updatedBy:uid(admin),updatedAt:serverTimestamp()});
+    }
+   }
+   return response;
+  };
+  const response=await api(uid(replaced));globalThis.fetch=rawFetch;assert.equal(changed,true);assert.equal(response.status,409);assert.equal((await getDoc(doc(admin.db,'userAccess',uid(replaced)))).data()!.deletionToken,'b'.repeat(32));assert.equal((await getDoc(doc(admin.db,'userProfiles',uid(replaced)))).exists(),true);
+ });
  await t.test('deleting unused merchant profiles retains portal classification; service identities are protected',async()=>{
   const merchant=await client('sample-merchant',true);await syncUserProfile(merchant,'Sample merchant');
   await setDoc(doc(admin.db,'merchantUsers',uid(merchant)),{merchantId:'sample-restaurant',role:'manager',enabled:true,createdAt:serverTimestamp(),updatedBy:uid(admin),updatedAt:serverTimestamp()});

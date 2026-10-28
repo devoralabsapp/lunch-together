@@ -68,8 +68,9 @@ export async function deleteManagedUserApi(request:Request,env:Env=process.env):
   const service=await backupServiceStore(env);previous=state;
   const deletionToken=randomUUID().replaceAll('-','');
   await store.call(':commit','POST',{writes:[store.write('userAccess/'+target,{blocked:flag(true),updatedBy:text(actor),deletionToken:text(deletionToken)},state)]});
-  lock=await store.get('userAccess/'+target);
-  if(lock?.fields?.deletionToken?.stringValue!==deletionToken)throw new UserDeleteError('Có thao tác quản trị khác đang xử lý tài khoản này.');
+  const acquired=await store.get('userAccess/'+target);
+  if(acquired?.fields?.deletionToken?.stringValue!==deletionToken)throw new UserDeleteError('Có thao tác quản trị khác đang xử lý tài khoản này.');
+  lock=acquired;
   const days=await store.days();
   for(let i=0;i<days.length;i+=6){const found=await Promise.all(days.slice(i,i+6).map(day=>store!.owned('orders','ownerId',target,1,'days/'+day.name.split('/').at(-1))));if(found.some(rows=>rows.length))throw new UserDeleteError(historyMessage);}
   const logs=await store.owned('activityLogs','actorId',target,10001);
