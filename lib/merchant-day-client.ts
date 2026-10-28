@@ -1,4 +1,4 @@
-import {collection,doc,getDoc,getDocs,query,where,runTransaction,serverTimestamp,Timestamp} from 'firebase/firestore';
+import {collection,doc,getDoc,getDocs,query,where,orderBy,limit,runTransaction,serverTimestamp,Timestamp} from 'firebase/firestore';
 import type {MealClient} from './meal-client';
 import {ensureUser} from './firebase-client';
 import {nameId,validDate,validateMenu} from './meal-client-model';
@@ -10,8 +10,8 @@ export async function mealRestaurants(client:MealClient):Promise<MealRestaurant[
 }
 export async function restaurantDayMenu(client:MealClient,merchantId:string,date:string){
  if(!validDate(date)||!/^[-\w]{1,128}$/.test(merchantId))throw Error('Ngày hoặc nhà hàng chưa hợp lệ.');
- let ref=doc(client.db,'merchants',merchantId,'offers',date),header=await getDoc(ref);
- if(!header.exists()){ref=doc(client.db,'merchants',merchantId,'menus',date);header=await getDoc(ref);}
+ const published=await getDocs(query(collection(client.db,'merchants',merchantId,'offers'),where('date','<=',date),orderBy('date','desc'),limit(1)));
+ const ref=published.docs[0]?.ref||doc(client.db,'merchants',merchantId,'menus',date),header=published.docs[0]||await getDoc(ref);
  if(!header.exists())throw Error('Nhà hàng chưa có thực đơn cơ sở cho ngày này.');
  const dishes=await getDocs(query(collection(ref,'dishes'),where('active','==',true)));
  if(!dishes.size)throw Error('Nhà hàng chưa có thực đơn cơ sở cho ngày này.');

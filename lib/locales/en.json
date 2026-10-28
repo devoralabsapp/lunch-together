@@ -1003,5 +1003,6 @@
   "Thực đơn nhà hàng vừa thay đổi. Vui lòng tải lại.": "The restaurant menu just changed. Reload and try again.",
   "Tạo ngày từ thực đơn nhà hàng": "Create a day from a restaurant menu",
   "Vui lòng chọn nhà hàng.": "Select a restaurant.",
-  "Đã tạo ngày và liên kết nhà hàng.": "Meal day created and restaurant linked."
+  "Đã tạo ngày và liên kết nhà hàng.": "Meal day created and restaurant linked.",
+  "Dùng thực đơn đã đăng gần nhất có hiệu lực vào ngày đã chọn. Liên kết được giữ cố định để bảo toàn lịch sử.": "Use the latest published menu effective on the selected date. The restaurant link is fixed to preserve history."
 }
