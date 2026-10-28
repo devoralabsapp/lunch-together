@@ -74,7 +74,9 @@ test('merchant roles share menus and orders while preserving financial and tenan
   await assertFails(getDocs(collection(customer,'merchants',merchantId,'events')));
  });
  await t.test('owners manage their team without escalating or moving identities across restaurants',async()=>{
-  await assertSucceeds(setDoc(doc(owner,'merchantUsers','new-kitchen'),{...member(merchantId,'kitchen'),updatedBy:uid(owner)}));
+  await assertFails(setDoc(doc(owner,'merchantUsers','new-kitchen'),{...member(merchantId,'kitchen'),updatedBy:uid(owner)}));
+  await setDoc(doc(admin,'merchantUsers','new-kitchen'),member(merchantId,'kitchen'));
+  await assertSucceeds(updateDoc(doc(owner,'merchantUsers','new-kitchen'),{enabled:true,updatedAt:now(),updatedBy:uid(owner)}));
   await assertFails(setDoc(doc(owner,'merchantUsers','new-owner'),{...member(merchantId,'owner'),updatedBy:uid(owner)}));
   await assertFails(updateDoc(doc(owner,'merchantUsers','merchant-owner'),{role:'manager',updatedAt:now(),updatedBy:uid(owner)}));
   await assertFails(updateDoc(doc(owner,'merchantUsers','new-kitchen'),{merchantId:'sample-restaurant-b',updatedAt:now(),updatedBy:uid(owner)}));

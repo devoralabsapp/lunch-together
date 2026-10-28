@@ -476,23 +476,38 @@ service cloud.firestore {
   // note<=300, orderHash64, lastEventId32, createdAt immutable, updatedAt/By.
   // merchants/{id}/events/{id}: kind enum, message<=500, dayId<=100,
   // actorId/current UID, createdAt/request.time; immutable, merchant/admin read.
-  function merchantStaff(id){
-   let p=/databases/$(database)/documents/merchantUsers/$(request.auth.uid);
-   let m=/databases/$(database)/documents/merchants/$(id);
-   return googleUser() && activeUser() && exists(p) && get(p).data.enabled==true && get(p).data.merchantId==id && exists(m) && get(m).data.active==true;
+  function merchantAccountEnabled(uid){let member=get(/databases/$(database)/documents/merchantUsers/$(uid));let application=get(/databases/$(database)/documents/merchantApplications/$(uid));let access=get(/databases/$(database)/documents/userAccess/$(uid));return member!=null && member.data.enabled==true && (application==null || application.data.status!='disabled') && (access==null || access.data.blocked==false);}
+  function merchantCanCreate(){let application=get(/databases/$(database)/documents/merchantApplications/$(request.auth.uid));let member=get(/databases/$(database)/documents/merchantUsers/$(request.auth.uid));return googleUser() && merchantAccountEnabled(request.auth.uid) && ((application!=null && application.data.status=='approved') || member.data.role=='owner');}
+  // Read each account/tenant document once. A disabled explicit grant overrides
+  // legacy membership; ownership remains immutable and requires active approval.
+  function merchantAssignedRole(id){
+   let member=get(/databases/$(database)/documents/merchantUsers/$(request.auth.uid));
+   let application=get(/databases/$(database)/documents/merchantApplications/$(request.auth.uid));
+   let access=get(/databases/$(database)/documents/userAccess/$(request.auth.uid));
+   let store=get(/databases/$(database)/documents/merchants/$(id));
+   let grant=get(/databases/$(database)/documents/merchantStoreUsers/$(id+'~'+request.auth.uid));
+   return googleUser() && member!=null && member.data.enabled==true && (application==null || application.data.status!='disabled') && (access==null || access.data.blocked==false) && store!=null && store.data.active==true
+    ?(store.data.get('ownerId','')==request.auth.uid?'owner':(grant!=null?(grant.data.enabled==true?grant.data.role:''):(member.data.merchantId==id && member.data.get('accountOnly',false)==false?member.data.role:''))):'';
   }
-  function merchantDayAccess(dayId){let p=/databases/$(database)/documents/merchantDays/$(dayId);return signedIn() && exists(p) && merchantStaff(get(p).data.merchantId);}
-  function merchantRole(id,roles){return merchantStaff(id) && get(/databases/$(database)/documents/merchantUsers/$(request.auth.uid)).data.role in roles;}
-  function merchantEditor(dayId){let p=/databases/$(database)/documents/merchantDays/$(dayId);return googleUser() && exists(p) && merchantRole(get(p).data.merchantId,['owner','manager']);}
-  function validMerchant(d){return d.keys().hasAll(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy']) && d.keys().hasOnly(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy']) && validText(d.name,100) && d.phone is string && d.phone.size()<=30 && d.address is string && d.address.size()<=300 && d.active is bool && validUid(d.createdBy) && d.createdAt is timestamp && d.updatedBy==request.auth.uid && d.updatedAt==request.time;}
-  function validMerchantUser(d){return d.keys().hasAll(['merchantId','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['merchantId','role','enabled','createdAt','updatedAt','updatedBy']) && validUid(d.merchantId) && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
+  function merchantStaff(id){return merchantAssignedRole(id)!='';}
+  function merchantRole(id,roles){return merchantAssignedRole(id) in roles;}
+  function merchantDayAccess(dayId){let binding=get(/databases/$(database)/documents/merchantDays/$(dayId));return signedIn() && binding!=null && merchantStaff(binding.data.merchantId);}
+  function merchantEditor(dayId){let binding=get(/databases/$(database)/documents/merchantDays/$(dayId));return googleUser() && binding!=null && merchantRole(binding.data.merchantId,['owner','manager']);}
+  function validMerchant(d){return d.keys().hasAll(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy']) && d.keys().hasOnly(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy','ownerId']) && (!('ownerId' in d) || validUid(d.ownerId)) && validText(d.name,100) && d.phone is string && d.phone.size()<=30 && d.address is string && d.address.size()<=300 && d.active is bool && validUid(d.createdBy) && d.createdAt is timestamp && d.updatedBy==request.auth.uid && d.updatedAt==request.time;}
+  function validMerchantUser(d){return d.keys().hasAll(['merchantId','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['merchantId','role','enabled','createdAt','updatedAt','updatedBy','accountOnly']) && (!('accountOnly' in d) || d.accountOnly is bool) && validUid(d.merchantId) && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
   function validMerchantBinding(d,dayId){return d.keys().hasAll(['merchantId','date','createdAt','createdBy']) && d.keys().hasOnly(['merchantId','date','createdAt','createdBy']) && validUid(d.merchantId) && exists(/databases/$(database)/documents/merchants/$(d.merchantId)) && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && dayId=='day-'+d.date && d.createdAt==request.time && d.createdBy==request.auth.uid;}
   match /merchants/{id}{
    allow get: if admin() || merchantStaff(id) || customerAccount();
-   allow list: if admin();
-   allow create: if admin() && validUid(id) && validMerchant(request.resource.data) && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid;
-   allow update: if (admin() || merchantRole(id,['owner','manager'])) && validMerchant(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.createdBy==resource.data.createdBy && (admin() || request.resource.data.active==resource.data.active);
+   allow list: if admin() || (googleUser() && merchantAccountEnabled(request.auth.uid) && resource.data.ownerId==request.auth.uid);
+   allow create: if (admin() || (merchantCanCreate() && request.resource.data.ownerId==request.auth.uid && request.resource.data.active==true)) && validUid(id) && validMerchant(request.resource.data) && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid;
+   allow update: if (admin() || merchantRole(id,['owner','manager'])) && validMerchant(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.createdBy==resource.data.createdBy && request.resource.data.get('ownerId','')==resource.data.get('ownerId','') && (admin() || request.resource.data.active==resource.data.active);
    allow delete: if false;
+   match /menus/{date}{
+    allow read: if admin() || merchantStaff(id);
+    allow create,update: if (admin() || merchantRole(id,['owner','manager'])) && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && request.resource.data.keys().hasAll(['date','menuCount','updatedBy','updatedAt']) && request.resource.data.keys().hasOnly(['date','menuCount','updatedBy','updatedAt']) && request.resource.data.date==date && request.resource.data.menuCount is int && request.resource.data.menuCount>=1 && request.resource.data.menuCount<=60 && request.resource.data.updatedBy==request.auth.uid && request.resource.data.updatedAt==request.time;
+    allow delete: if false;
+    match /dishes/{dishId}{allow read: if admin() || merchantStaff(id);allow create,update: if (admin() || merchantRole(id,['owner','manager'])) && getAfter(/databases/$(database)/documents/merchants/$(id)/menus/$(date)).data.date==date && validDish(request.resource.data,dishId);allow delete: if false;}
+   }
    match /catalog/{dishId}{
     allow read: if admin() || merchantStaff(id);
     allow create,update: if (admin() || merchantRole(id,['owner','manager'])) && validDish(request.resource.data,dishId);
@@ -500,7 +515,7 @@ service cloud.firestore {
    }
    match /events/{eventId}{
     allow read: if admin() || merchantStaff(id);
-    allow create: if (admin() || merchantStaff(id)) && eventId.matches('^[a-f0-9]{32}$') && request.resource.data.keys().hasAll(['kind','message','dayId','actorId','createdAt']) && request.resource.data.keys().hasOnly(['kind','message','dayId','actorId','createdAt']) && request.resource.data.kind in ['merchant.create','menu.publish','catalog.save','status.change','member.update','merchant.update','day.bind'] && validText(request.resource.data.message,500) && request.resource.data.dayId is string && request.resource.data.dayId.size()<=100 && request.resource.data.actorId==request.auth.uid && request.resource.data.createdAt==request.time;
+    allow create: if (admin() || merchantStaff(id) || (request.resource.data.kind=='merchant.create' && merchantCanCreate() && getAfter(/databases/$(database)/documents/merchants/$(id)).data.ownerId==request.auth.uid && getAfter(/databases/$(database)/documents/merchants/$(id)).data.createdBy==request.auth.uid && getAfter(/databases/$(database)/documents/merchants/$(id)).data.createdAt==request.time)) && eventId.matches('^[a-f0-9]{32}$') && request.resource.data.keys().hasAll(['kind','message','dayId','actorId','createdAt']) && request.resource.data.keys().hasOnly(['kind','message','dayId','actorId','createdAt']) && request.resource.data.kind in ['merchant.create','menu.publish','catalog.save','status.change','member.update','merchant.update','day.bind','branch.menu'] && validText(request.resource.data.message,500) && request.resource.data.dayId is string && request.resource.data.dayId.size()<=100 && request.resource.data.actorId==request.auth.uid && request.resource.data.createdAt==request.time;
     allow update,delete: if false;
    }
   }
@@ -509,8 +524,28 @@ service cloud.firestore {
    allow list: if admin() || merchantRole(resource.data.merchantId,['owner']);
    // Reclassifying an existing customer account requires a system admin;
    // restaurant owners cannot lock customers out by adding their known UID.
-   allow create: if validUid(uid) && validMerchantUser(request.resource.data) && request.resource.data.createdAt==request.time && (admin() || (merchantRole(request.resource.data.merchantId,['owner']) && request.resource.data.role!='owner' && !exists(/databases/$(database)/documents/userProfiles/$(uid))));
+   allow create: if validUid(uid) && validMerchantUser(request.resource.data) && request.resource.data.createdAt==request.time && (admin() || (merchantRole(request.resource.data.merchantId,['owner']) && request.resource.data.role!='owner' && merchantAccountEnabled(uid) && !exists(/databases/$(database)/documents/userProfiles/$(uid))));
    allow update: if validMerchantUser(request.resource.data) && request.resource.data.merchantId==resource.data.merchantId && request.resource.data.createdAt==resource.data.createdAt && (admin() || (merchantRole(resource.data.merchantId,['owner']) && resource.data.role!='owner' && request.resource.data.role!='owner' && uid!=request.auth.uid));
+   allow delete: if false;
+  }
+  // Merchant v2: verified applications, admin review, per-store grants.
+  function validMerchantApplication(d){return d.keys().hasAll(['email','displayName','businessName','phone','note','status','createdAt','updatedAt','reviewedBy','reviewedAt','reviewNote','reviewEventId']) && d.keys().hasOnly(['email','displayName','businessName','phone','note','status','createdAt','updatedAt','reviewedBy','reviewedAt','reviewNote','reviewEventId']) && validText(d.email,254) && d.displayName is string && d.displayName.size()<=100 && d.businessName is string && d.businessName.size()<=100 && d.phone is string && d.phone.size()<=30 && d.phone.matches('^[0-9+(). -]*$') && d.note is string && d.note.size()<=500 && d.status in ['pending','approved','rejected','disabled'] && d.createdAt is timestamp && d.updatedAt==request.time && d.reviewedBy is string && d.reviewedBy.size()<=128 && d.reviewNote is string && d.reviewNote.size()<=500 && d.reviewEventId is string && d.reviewEventId.size()<=32 && (d.status=='pending'?(d.reviewedBy=='' && d.reviewedAt==null && d.reviewNote=='' && d.reviewEventId==''):(validUid(d.reviewedBy) && d.reviewedAt is timestamp && d.reviewEventId.matches('^[a-f0-9]{32}$')));}
+  function merchantReviewPaired(d,uid){let p=/databases/$(database)/documents/merchantApprovalEvents/$(d.reviewEventId);return !exists(p) && getAfter(p).data.uid==uid && getAfter(p).data.status==d.status && getAfter(p).data.actorId==request.auth.uid && getAfter(p).data.createdAt==request.time;}
+  match /merchantApplications/{uid}{
+   allow get: if googleUser() && (uid==request.auth.uid || admin());allow list: if admin();
+   allow create: if googleUser() && activeUser() && accountWritable(uid) && uid==request.auth.uid && validUid(uid) && validMerchantApplication(request.resource.data) && request.resource.data.email==request.auth.token.email && request.resource.data.status=='pending' && request.resource.data.createdAt==request.time;
+   allow update: if validMerchantApplication(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt && (
+    (googleUser() && activeUser() && accountWritable(uid) && uid==request.auth.uid && resource.data.status in ['pending','rejected'] && request.resource.data.status=='pending' && request.resource.data.email==request.auth.token.email)
+    || (admin() && request.resource.data.email==resource.data.email && request.resource.data.displayName==resource.data.displayName && request.resource.data.businessName==resource.data.businessName && request.resource.data.phone==resource.data.phone && request.resource.data.note==resource.data.note && request.resource.data.reviewedBy==request.auth.uid && request.resource.data.reviewedAt==request.time && merchantReviewPaired(request.resource.data,uid) && ((resource.data.status=='pending' && request.resource.data.status in ['approved','rejected']) || (resource.data.status=='approved' && request.resource.data.status=='disabled') || (resource.data.status=='disabled' && request.resource.data.status=='approved')) && (request.resource.data.status!='approved' || (getAfter(/databases/$(database)/documents/merchantUsers/$(uid)).data.enabled==true && (!exists(/databases/$(database)/documents/userAccess/$(uid)) || get(/databases/$(database)/documents/userAccess/$(uid)).data.blocked==false))))) ;
+   allow delete: if false;
+  }
+  match /merchantApprovalEvents/{eventId}{allow read: if admin();allow create: if admin() && eventId.matches('^[a-f0-9]{32}$') && request.resource.data.keys().hasAll(['uid','status','actorId','note','createdAt']) && request.resource.data.keys().hasOnly(['uid','status','actorId','note','createdAt']) && validUid(request.resource.data.uid) && request.resource.data.status in ['approved','rejected','disabled'] && request.resource.data.actorId==request.auth.uid && request.resource.data.note is string && request.resource.data.note.size()<=500 && request.resource.data.createdAt==request.time && getAfter(/databases/$(database)/documents/merchantApplications/$(request.resource.data.uid)).data.reviewEventId==eventId && getAfter(/databases/$(database)/documents/merchantApplications/$(request.resource.data.uid)).data.updatedAt==request.time;allow update,delete: if false;}
+  function validStoreUser(d,id){return d.keys().hasAll(['merchantId','uid','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['merchantId','uid','role','enabled','createdAt','updatedAt','updatedBy']) && validUid(d.merchantId) && validUid(d.uid) && id==d.merchantId+'~'+d.uid && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedBy==request.auth.uid && d.updatedAt==request.time;}
+  match /merchantStoreUsers/{id}{
+   allow get: if googleUser() && id.split('~').size()==2 && (id.split('~')[1]==request.auth.uid || admin() || merchantRole(id.split('~')[0],['owner']));
+   allow list: if googleUser() && (resource.data.uid==request.auth.uid || admin() || merchantRole(resource.data.merchantId,['owner']));
+   allow create: if validStoreUser(request.resource.data,id) && merchantAccountEnabled(request.resource.data.uid) && request.resource.data.createdAt==request.time && (admin() || (merchantRole(request.resource.data.merchantId,['owner']) && request.resource.data.role!='owner' && request.resource.data.uid!=request.auth.uid));
+   allow update: if validStoreUser(request.resource.data,id) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.uid==resource.data.uid && request.resource.data.merchantId==resource.data.merchantId && (admin() || (merchantRole(resource.data.merchantId,['owner']) && resource.data.role!='owner' && request.resource.data.role!='owner' && resource.data.uid!=request.auth.uid));
    allow delete: if false;
   }
   match /merchantDays/{dayId}{
