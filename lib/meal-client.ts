@@ -13,6 +13,7 @@ import {isBankAccount} from './payment-model';
 import {placeOrderCart} from './order-cart';
 import {invalidateLinkedGroup} from './payment-group-client';
 import {assertCustomerAccount} from './portal-access';
+import {createRestaurantDay} from './merchant-day-client';
 
 export class MealClient{
  constructor(public auth:Auth,public db:Firestore,private source:Workspace){}
@@ -69,6 +70,7 @@ export class MealClient{
   if(body.action==='order'&&body.items){const saved=await placeOrderCart(this,id,body.name,body.items);rememberOrderName(saved.name);await syncUserProfile(this,saved.name).catch(()=>{});let creditNotice='';try{await applyCredit(this,saved.orderIds.map(orderId=>({dayId:id,orderId})));}catch{creditNotice='Đơn đã lưu. Số dư chưa được trừ; sẽ thử lại khi thanh toán.';}return {...await this.read(id),creditNotice};}
   if(body.action==='day'){
    if(!admin)throw new Error('Chỉ người quản lý được sửa thực đơn.');
+   if(body.create&&body.merchantId){await createRestaurantDay(this,{date:String(body.date),merchantId:String(body.merchantId),status:String(body.status||'auto')});return this.read(id);}
    const current=await getDoc(doc(this.db,'days',id)),fallback=this.source.days.find(d=>d.id===id);
    if(body.create&&current.exists())throw new Error('Ngày này đã có thực đơn.');
    const date=String(body.date||current.data()?.date||fallback?.date||''),status=String(body.status||'auto');
