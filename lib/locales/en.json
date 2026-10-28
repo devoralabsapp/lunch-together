@@ -948,5 +948,6 @@
   "Nhà hàng đang giao cơm": "Your lunch is on the way",
   "Nhà hàng đã giao xong": "The restaurant has completed delivery",
   "Nhà hàng chưa xác nhận danh sách": "The restaurant has not accepted the list yet",
-  "Đơn đã cập nhật, chờ nhà hàng xác nhận lại": "Orders have changed; awaiting restaurant confirmation"
+  "Đơn đã cập nhật, chờ nhà hàng xác nhận lại": "Orders have changed; awaiting restaurant confirmation",
+  "Tài khoản này thuộc portal nhà hàng. Vui lòng đăng nhập tại Merchant; chỉ quản trị được dùng cả hai portal.": "This account belongs to the Merchant portal. Please sign in there; only administrators can use both portals."
 }

@@ -42,6 +42,9 @@ rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
   function signedIn(){return request.auth != null;}
+  // Membership reserves an account for Merchant, even while disabled.
+  // Only verified Google admins may enter both customer and merchant portals.
+  function customerAccount(){return signedIn() && (!exists(/databases/$(database)/documents/merchantUsers/$(request.auth.uid)) || admin());}
   function googleUser(){return signedIn() && request.auth.token.get('email_verified',false) == true && request.auth.token.firebase.sign_in_provider == 'google.com';}
   function admin(){return googleUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.enabled == true;}
   function primaryAdmin(){return admin() && request.auth.uid == 'PRIMARY_ADMIN_UID_HERE';}
@@ -83,10 +86,12 @@ service cloud.firestore {
   function owed(d){return d.cancelled?0:d.price*d.quantity;}
   function due(d){let total=owed(d);let balance=held(d);return total>balance?total-balance:0;}
   function refundDue(d){let total=owed(d);let balance=held(d);return balance>total?balance-total:0;}
-  function validMoney(d){let r=received(d);let f=refunded(d);let v=voided(d);let ci=creditIn(d);let co=creditOut(d);let c=choice(d);let e=d.get('paymentEventId','');let last=d.get('lastCreditTransferId','');return r is int && r>=0 && r<=1000000000 && f is int && f>=0 && v is int && v>=0 && ci is int && ci>=0 && ci<=1000000000 && co is int && co>=0 && co<=1000000000 && r+ci-co-f-v>=0 && c in ['refund','carry'] && last is string && last.size()<=32 && e is string && e.size()<=32;}
+  function validMoney(d){let r=received(d);let f=d.get('refundedAmount',0);let v=d.get('voidedAmount',0);let ci=d.get('creditInAmount',0);let co=d.get('creditOutAmount',0);let c=d.get('surplusChoice','refund');let e=d.get('paymentEventId','');let last=d.get('lastCreditTransferId','');return r is int && r>=0 && r<=1000000000 && f is int && f>=0 && v is int && v>=0 && ci is int && ci>=0 && ci<=1000000000 && co is int && co>=0 && co<=1000000000 && r+ci-co-f-v>=0 && c in ['refund','carry'] && last is string && last.size()<=32 && e is string && e.size()<=32;}
   function derivedPaid(d){return d.paid==(!d.cancelled && held(d)>=d.price*d.quantity);}
   function moneyUnchanged(a,b){return received(a)==received(b) && refunded(a)==refunded(b) && voided(a)==voided(b) && creditIn(a)==creditIn(b) && creditOut(a)==creditOut(b) && choice(a)==choice(b);}
-  function bankMoney(d,amount){return received(d)==received(resource.data)+amount && refunded(d)==refunded(resource.data) && voided(d)==voided(resource.data) && creditIn(d)==creditIn(resource.data) && creditOut(d)==creditOut(resource.data) && choice(d)==choice(resource.data) && derivedPaid(d); }
+  // Inline identical default-value getters to stay under Rules expression limits
+  // when grouped settlements also enforce portal admission. No predicate changes.
+  function bankMoney(d,amount){let old=resource.data;return received(d)==received(old)+amount && d.get('refundedAmount',0)==old.get('refundedAmount',0) && d.get('voidedAmount',0)==old.get('voidedAmount',0) && d.get('creditInAmount',0)==old.get('creditInAmount',0) && d.get('creditOutAmount',0)==old.get('creditOutAmount',0) && d.get('surplusChoice','refund')==old.get('surplusChoice','refund') && derivedPaid(d); }
   function financialEvent(dayId,orderId,d){
    let id=d.get('paymentEventId','');
    let path=/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)/financialEvents/$(id);
@@ -103,7 +108,7 @@ service cloud.firestore {
      || (e.kind=='refund' && values[5]=='refund' && amount<0 && d.refundedAmount==values[1]-amount && d.receivedAmount==values[0] && d.voidedAmount==values[2]));
   }
   match /days/{dayId}/orders/{orderId}/financialEvents/{eventId}{
-   allow read: if signedIn() && (admin() || get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId==request.auth.uid);
+   allow read: if customerAccount() && (admin() || get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId==request.auth.uid);
    allow create: if admin() && eventId.matches('^[a-f0-9]{32}$') && request.resource.data.keys().hasAll(['kind','createdBy','createdAt','beforeReceived','beforeRefunded','beforeVoided','afterReceived','afterRefunded','afterVoided']) && request.resource.data.keys().hasOnly(['kind','createdBy','createdAt','beforeReceived','beforeRefunded','beforeVoided','afterReceived','afterRefunded','afterVoided']) && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid && getAfter(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.paymentEventId==eventId && getAfter(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.updatedAt==request.time;
    allow update,delete: if false;
   }
@@ -114,9 +119,9 @@ service cloud.firestore {
   function samePrice(d){return d.dishId == resource.data.dishId && d.dish == resource.data.dish && d.price == resource.data.price;}
   function recipient(sourceUid){
    let path=/databases/$(database)/documents/accountLinks/$(sourceUid);
-   return googleUser() && exists(path) && get(path).data.targetUid == request.auth.uid && request.time < get(path).data.expiresAt;
+   return customerAccount() && googleUser() && exists(path) && get(path).data.targetUid == request.auth.uid && request.time < get(path).data.expiresAt;
   }
-  function ownOrder(){return signedIn() && resource.data.ownerId == request.auth.uid;}
+  function ownOrder(){return customerAccount() && resource.data.ownerId == request.auth.uid;}
   function parentExists(dayId){return exists(/databases/$(database)/documents/days/$(dayId));}
   function correctPayment(d){return moneyUnchanged(d,resource.data) && derivedPaid(d);}
   function creditPointerMove(dayId,orderId){let p=/databases/$(database)/documents/creditSources/$(dayId+'~'+orderId);return !exists(p) || getAfter(p).data.ownerId==request.auth.uid;}
@@ -132,9 +137,9 @@ service cloud.firestore {
   }
   function validCreditSource(d,key){return d.keys().hasAll(['dayId','orderId','ownerId','createdAt','updatedAt']) && d.keys().hasOnly(['dayId','orderId','ownerId','createdAt','updatedAt']) && validUid(d.ownerId) && key==d.dayId+'~'+d.orderId && d.dayId is string && d.dayId.matches('^[A-Za-z0-9_-]{1,100}$') && d.orderId is string && d.orderId.matches('^[a-f0-9]{64}(_([1-9]|[12][0-9]|30))?$') && d.createdAt is timestamp && d.updatedAt==request.time;}
   match /creditSources/{key}{
-   allow read: if signedIn();
-   allow create: if signedIn() && validCreditSource(request.resource.data,key) && request.resource.data.createdAt==request.time && (request.resource.data.ownerId==request.auth.uid || admin()) && getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)/orders/$(request.resource.data.orderId)).data.ownerId==request.resource.data.ownerId && choice(getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)/orders/$(request.resource.data.orderId)).data)=='carry';
-   allow update: if signedIn() && validCreditSource(request.resource.data,key) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && request.resource.data.ownerId==request.auth.uid && getAfter(/databases/$(database)/documents/days/$(resource.data.dayId)/orders/$(resource.data.orderId)).data.ownerId==request.auth.uid;
+   allow read: if customerAccount();
+   allow create: if customerAccount() && validCreditSource(request.resource.data,key) && request.resource.data.createdAt==request.time && (request.resource.data.ownerId==request.auth.uid || admin()) && getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)/orders/$(request.resource.data.orderId)).data.ownerId==request.resource.data.ownerId && choice(getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)/orders/$(request.resource.data.orderId)).data)=='carry';
+   allow update: if customerAccount() && validCreditSource(request.resource.data,key) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && request.resource.data.ownerId==request.auth.uid && getAfter(/databases/$(database)/documents/days/$(resource.data.dayId)/orders/$(resource.data.orderId)).data.ownerId==request.auth.uid;
    allow delete: if false;
   }
   function validCreditTransfer(e,id){
@@ -151,13 +156,13 @@ service cloud.firestore {
     && na.creditOutAmount==va[4]+e.amount && na.creditInAmount==va[3] && na.receivedAmount==va[0] && na.refundedAmount==va[1] && na.voidedAmount==va[2] && na.surplusChoice==va[5]
     && nb.creditInAmount==vb[3]+e.amount && nb.creditOutAmount==vb[4] && nb.receivedAmount==vb[0] && nb.refundedAmount==vb[1] && nb.voidedAmount==vb[2] && nb.surplusChoice==vb[5] && na.paid==(!a.cancelled && ah-e.amount>=a.price*a.quantity) && nb.paid==(bh+e.amount>=b.price*b.quantity);
   }
-  match /creditTransfers/{id}{allow read: if signedIn();allow create: if signedIn() && validCreditTransfer(request.resource.data,id);allow update,delete: if false;}
+  match /creditTransfers/{id}{allow read: if customerAccount();allow create: if customerAccount() && validCreditTransfer(request.resource.data,id);allow update,delete: if false;}
   function validActivity(d){return d.keys().hasAll(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.keys().hasOnly(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.actorId==request.auth.uid && d.createdAt==request.time && d.source in ['app','bank'] && d.kind in ['app.visit','page.view','auth.signin','auth.signout','order.create','order.update','order.cancel','order.transfer','menu.save','payment.receive','payment.void','payment.refund','payment.qr','bank.received','bank.notice','app.error','payment.settings','credit.choice','credit.apply','user.block','user.role','pickup.draw','share.create','share.revoke','export.pdf','export.jpg','export.csv','profile.update','organization.save','export.personal','import.personal','import.review'] && d.summary is string && d.summary.size()>0 && d.summary.size()<=500 && d.details is string && d.details.size()<=24000 && d.dayId is string && d.dayId.size()<=100 && d.orderId is string && d.orderId.size()<=70 && d.reference is string && d.reference.size()<=23;}
-  match /activityLogs/{id}{allow read: if signedIn() && (admin() || resource.data.actorId==request.auth.uid);allow create: if signedIn() && id.matches('^[A-Za-z0-9_-]{20,32}$') && validActivity(request.resource.data) && (request.resource.data.source=='app' ? !request.resource.data.kind.matches('^bank[.].*') : (paymentBot() && (request.resource.data.kind=='bank.notice' || (request.resource.data.kind=='bank.received' && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdBy==request.auth.uid && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdAt==request.time))));allow update,delete: if false;}
+  match /activityLogs/{id}{allow read: if customerAccount() && (admin() || resource.data.actorId==request.auth.uid);allow create: if customerAccount() && id.matches('^[A-Za-z0-9_-]{20,32}$') && validActivity(request.resource.data) && (request.resource.data.source=='app' ? !request.resource.data.kind.matches('^bank[.].*') : (paymentBot() && (request.resource.data.kind=='bank.notice' || (request.resource.data.kind=='bank.received' && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdBy==request.auth.uid && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdAt==request.time))));allow update,delete: if false;}
 
   function validLink(d,sourceUid){
    return d.keys().hasAll(['targetUid','createdAt','expiresAt']) && d.keys().hasOnly(['targetUid','createdAt','expiresAt'])
-    && signedIn() && sourceUid == request.auth.uid && request.auth.token.firebase.sign_in_provider == 'anonymous'
+    && customerAccount() && sourceUid == request.auth.uid && request.auth.token.firebase.sign_in_provider == 'anonymous'
     && d.targetUid is string && d.targetUid.matches('^[A-Za-z0-9_-]{1,128}$') && d.targetUid != sourceUid
     && d.createdAt == request.time && d.expiresAt is timestamp && d.expiresAt > request.time && d.expiresAt <= request.time + duration.value(10,'m');
   }
@@ -199,7 +204,7 @@ service cloud.firestore {
     && exists(/databases/$(database)/documents/days/$(d.dayId)) && get(/databases/$(database)/documents/days/$(d.dayId)).data.date == d.date
     && get(/databases/$(database)/documents/days/$(d.dayId)).data.status == 'closed';
   }
-  match /pickupDraws/{date}{allow read: if signedIn();allow create: if admin() && validPickup(request.resource.data,date);allow update,delete: if false;}
+  match /pickupDraws/{date}{allow read: if customerAccount();allow create: if admin() && validPickup(request.resource.data,date);allow update,delete: if false;}
   function validProfile(d){
    return d.keys().hasAll(['displayName','preferredName','email','provider','createdAt','lastSeenAt']) && d.keys().hasOnly(['displayName','preferredName','email','provider','createdAt','lastSeenAt'])
     && d.displayName is string && d.displayName.size()<=100 && d.displayName==d.displayName.trim()
@@ -218,9 +223,9 @@ service cloud.firestore {
      && (!existsAfter(/databases/$(database)/documents/userAccess/$(uid)) || getAfter(/databases/$(database)/documents/userAccess/$(uid)).data.blocked==false)));
   }
   match /userProfiles/{uid}{
-   allow get: if signedIn() && (request.auth.uid==uid || admin());allow list: if admin();
-   allow create: if signedIn() && uid==request.auth.uid && validUid(uid) && validProfile(request.resource.data) && request.resource.data.createdAt==request.time;
-   allow update: if signedIn() && uid==request.auth.uid && validProfile(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt;
+   allow get: if customerAccount() && (request.auth.uid==uid || admin());allow list: if admin();
+   allow create: if customerAccount() && uid==request.auth.uid && validUid(uid) && validProfile(request.resource.data) && request.resource.data.createdAt==request.time;
+   allow update: if customerAccount() && uid==request.auth.uid && validProfile(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt;
    allow delete: if false;
   }
   function validCatalog(d,id,department){
@@ -239,13 +244,13 @@ service cloud.firestore {
   }
   function validOrganization(d){return d.keys().hasAll(['defaultCompanyId','defaultDepartmentId','updatedAt','updatedBy']) && d.keys().hasOnly(['defaultCompanyId','defaultDepartmentId','updatedAt','updatedBy']) && validAffiliation(d.defaultCompanyId,d.defaultDepartmentId) && ((d.defaultCompanyId=='' && d.defaultDepartmentId=='') || (d.defaultCompanyId!='' && d.defaultDepartmentId!='')) && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
   function validPersonalDetails(d){return d.keys().hasAll(['companyId','departmentId','phone','jobTitle','updatedAt']) && d.keys().hasOnly(['companyId','departmentId','phone','jobTitle','updatedAt']) && validAffiliation(d.companyId,d.departmentId) && d.phone is string && d.phone.size()<=30 && d.phone.matches('^[0-9+(). -]*$') && d.jobTitle is string && d.jobTitle.size()<=100 && d.updatedAt==request.time;}
-  match /companies/{id}{allow read: if signedIn();allow create: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==resource.data.createdAt;allow delete: if catalogDeleteAllowed(id,true);}
-  match /departments/{id}{allow read: if signedIn();allow create: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.companyId==resource.data.companyId;allow delete: if catalogDeleteAllowed(id,false);}
-  match /settings/organization{allow read: if signedIn();allow create,update: if admin() && validOrganization(request.resource.data);allow delete: if false;}
-  match /personalDetails/{uid}{allow get: if signedIn() && (uid==request.auth.uid || admin());allow list: if admin();allow create,update: if signedIn() && uid==request.auth.uid && validUid(uid) && validPersonalDetails(request.resource.data);allow delete: if false;}
-  function ownsImport(id){return signedIn() && id.matches('^'+request.auth.uid+'~[a-f0-9]{64}$');}
+  match /companies/{id}{allow read: if customerAccount();allow create: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==resource.data.createdAt;allow delete: if catalogDeleteAllowed(id,true);}
+  match /departments/{id}{allow read: if customerAccount();allow create: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.companyId==resource.data.companyId;allow delete: if catalogDeleteAllowed(id,false);}
+  match /settings/organization{allow read: if customerAccount();allow create,update: if admin() && validOrganization(request.resource.data);allow delete: if false;}
+  match /personalDetails/{uid}{allow get: if customerAccount() && (uid==request.auth.uid || admin());allow list: if admin();allow create,update: if customerAccount() && uid==request.auth.uid && validUid(uid) && validPersonalDetails(request.resource.data);allow delete: if false;}
+  function ownsImport(id){return customerAccount() && id.matches('^'+request.auth.uid+'~[a-f0-9]{64}$');}
   function validPersonalExport(d,id){return id.matches('^[a-f0-9]{32}$') && d.keys().hasAll(['ownerId','fileHash','bytes','formatVersion','exportedAt','orderCount','createdBy','createdAt']) && d.keys().hasOnly(['ownerId','fileHash','bytes','formatVersion','exportedAt','orderCount','createdBy','createdAt']) && validUid(d.ownerId) && d.fileHash is string && d.fileHash.matches('^[a-f0-9]{64}$') && d.bytes is int && d.bytes>0 && d.bytes<=10000000 && d.formatVersion==2 && d.exportedAt is string && d.exportedAt.size()<=40 && d.exportedAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$') && d.orderCount is int && d.orderCount>=0 && d.orderCount<=20000 && d.createdBy==request.auth.uid && d.createdAt==request.time;}
-  match /personalExports/{id}{allow get: if signedIn() && (paymentBot() || admin() || (resource!=null && resource.data.ownerId==request.auth.uid));allow list: if false;allow create: if paymentBot() && validPersonalExport(request.resource.data,id);allow update,delete: if false;}
+  match /personalExports/{id}{allow get: if customerAccount() && (paymentBot() || admin() || (resource!=null && resource.data.ownerId==request.auth.uid));allow list: if false;allow create: if paymentBot() && validPersonalExport(request.resource.data,id);allow update,delete: if false;}
   function verifiedImport(d){let e=get(/databases/$(database)/documents/personalExports/$(d.exportId)).data;return e.fileHash==d.fileHash && e.ownerId==d.sourceUid && e.bytes==d.bytes && e.orderCount==d.orderCount && e.formatVersion==2;}
   function validPersonalImport(d,id){return d.keys().hasAll(['ownerId','sourceUid','fileHash','bytes','chunkCount','orderCount','moneyCount','restoredCount','skippedCount','state','reviewedBy','reviewNote','createdAt','updatedAt']) && d.keys().hasOnly(['ownerId','sourceUid','exportId','fileHash','bytes','chunkCount','orderCount','moneyCount','restoredCount','skippedCount','state','reviewedBy','reviewNote','createdAt','updatedAt']) && (!('exportId' in d) || (d.exportId is string && d.exportId.matches('^[a-f0-9]{32}$')))
    && validUid(d.ownerId) && validUid(d.sourceUid) && d.fileHash is string && d.fileHash.matches('^[a-f0-9]{64}$') && id==d.ownerId+'~'+d.fileHash
@@ -254,14 +259,14 @@ service cloud.firestore {
    && d.restoredCount is int && d.restoredCount>=0 && d.restoredCount<=d.orderCount && d.skippedCount is int && d.skippedCount>=0 && d.skippedCount<=d.orderCount
    && d.state in ['uploading','ready','restored','pending','reviewed'] && d.reviewedBy is string && (d.reviewedBy=='' || validUid(d.reviewedBy)) && d.reviewNote is string && d.reviewNote.size()<=1000 && d.createdAt is timestamp && d.updatedAt==request.time;}
   match /personalImports/{id}{
-   allow get: if ownsImport(id) || admin();allow list: if signedIn() && (resource.data.ownerId==request.auth.uid || admin());
+   allow get: if ownsImport(id) || admin();allow list: if customerAccount() && (resource.data.ownerId==request.auth.uid || admin());
    allow create: if ownsImport(id) && validPersonalImport(request.resource.data,id) && 'exportId' in request.resource.data && verifiedImport(request.resource.data) && request.resource.data.ownerId==request.auth.uid && request.resource.data.createdAt==request.time && request.resource.data.state=='uploading' && request.resource.data.restoredCount==0 && request.resource.data.skippedCount==0 && request.resource.data.reviewedBy=='' && request.resource.data.reviewNote=='';
-   allow update: if signedIn() && validPersonalImport(request.resource.data,id) && (
+   allow update: if customerAccount() && validPersonalImport(request.resource.data,id) && (
     (ownsImport(id) && resource.data.ownerId==request.auth.uid && resource.data.state!='reviewed' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state','restoredCount','skippedCount','updatedAt']) && ((resource.data.state=='uploading' && request.resource.data.state=='ready') || (resource.data.state in ['ready','restored','pending'] && (request.resource.data.state=='pending' || (request.resource.data.state=='restored' && request.resource.data.moneyCount==0 && request.resource.data.skippedCount==0)))))
     || (admin() && resource.data.state=='pending' && request.resource.data.state=='reviewed' && request.resource.data.reviewedBy==request.auth.uid && request.resource.data.reviewNote.size()>0 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state','reviewedBy','reviewNote','updatedAt'])));
    allow delete: if false;
    match /chunks/{index}{
-    allow read: if signedIn() && (get(/databases/$(database)/documents/personalImports/$(id)).data.ownerId==request.auth.uid || admin());
+    allow read: if customerAccount() && (get(/databases/$(database)/documents/personalImports/$(id)).data.ownerId==request.auth.uid || admin());
     allow create: if ownsImport(id) && get(/databases/$(database)/documents/personalImports/$(id)).data.ownerId==request.auth.uid && get(/databases/$(database)/documents/personalImports/$(id)).data.state=='uploading'
      && request.resource.data.keys().hasAll(['index','data','createdAt']) && request.resource.data.keys().hasOnly(['index','data','createdAt']) && request.resource.data.index is int && request.resource.data.index>=0 && request.resource.data.index<get(/databases/$(database)/documents/personalImports/$(id)).data.chunkCount && index==string(request.resource.data.index)
      && request.resource.data.data is string && request.resource.data.data.size()>0 && request.resource.data.data.size()<=150000 && request.resource.data.createdAt==request.time;
@@ -277,17 +282,17 @@ service cloud.firestore {
    allow create,update: if canChangeRole(uid,request.resource.data);allow delete: if false;
   }
   match /accountLinks/{sourceUid}{
-   allow get: if signedIn() && (request.auth.uid == sourceUid || (resource != null && googleUser() && resource.data.targetUid == request.auth.uid));
+   allow get: if customerAccount() && (request.auth.uid == sourceUid || (resource != null && googleUser() && resource.data.targetUid == request.auth.uid));
    allow list,update: if false;
    allow create: if validLink(request.resource.data,sourceUid);
-   allow delete: if signedIn() && (request.auth.uid == sourceUid || (googleUser() && resource.data.targetUid == request.auth.uid));
+   allow delete: if customerAccount() && (request.auth.uid == sourceUid || (googleUser() && resource.data.targetUid == request.auth.uid));
   }
   // Bank payee settings; legacy qrUrl remains readable during migration.
   function bankFields(d){return d.bankBin is string && d.bankBin.matches('^[0-9]{6}$') && validText(d.bankName,100) && d.accountNumber is string && d.accountNumber.matches('^[A-Za-z0-9]{1,34}$') && validText(d.accountName,70);}
   function validBankPayment(d){return d.keys().hasAll(['bankBin','bankName','accountNumber','accountName','updatedAt']) && d.keys().hasOnly(['bankBin','bankName','accountNumber','accountName','updatedAt']) && bankFields(d) && d.updatedAt==request.time;}
   function paymentCode(code){return code is string && code.matches('^COM[A-F0-9]{20}$');}
-  function paymentBot(){return signedIn() && request.auth.token.firebase.sign_in_provider=='anonymous' && exists(/databases/$(database)/documents/paymentIntegrations/$(request.auth.uid)) && get(/databases/$(database)/documents/paymentIntegrations/$(request.auth.uid)).data.enabled==true;}
-  function paymentOrderAccess(dayId,orderId){return signedIn() && (get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId==request.auth.uid || recipient(get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId) || admin() || paymentBot());}
+  function paymentBot(){return customerAccount() && request.auth.token.firebase.sign_in_provider=='anonymous' && exists(/databases/$(database)/documents/paymentIntegrations/$(request.auth.uid)) && get(/databases/$(database)/documents/paymentIntegrations/$(request.auth.uid)).data.enabled==true;}
+  function paymentOrderAccess(dayId,orderId){return customerAccount() && (get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId==request.auth.uid || recipient(get(/databases/$(database)/documents/days/$(dayId)/orders/$(orderId)).data.ownerId) || admin() || paymentBot());}
   // Immutable intent: account + exact current order snapshot, at most 24h.
   function validPaymentIntent(d,code){
    let o=get(/databases/$(database)/documents/days/$(d.dayId)/orders/$(d.orderId)).data;
@@ -335,11 +340,11 @@ service cloud.firestore {
    return (orderId==hash(d.name) && !existsAfter(person)) || (existsAfter(person) && getAfter(person).data.ownerId==d.ownerId);
   }
   match /days/{dayId}/orderPeople/{id}{
-   allow read: if signedIn() && parentExists(dayId);
-   allow create: if signedIn() && activeUser() && validPerson(request.resource.data,id) && request.resource.data.createdAt==request.time && openDay(dayId)
+   allow read: if (customerAccount() || merchantDayAccess(dayId)) && parentExists(dayId);
+   allow create: if customerAccount() && activeUser() && validPerson(request.resource.data,id) && request.resource.data.createdAt==request.time && openDay(dayId)
     && (request.resource.data.ownerId==request.auth.uid || admin())
     && (!exists(/databases/$(database)/documents/days/$(dayId)/orders/$(id)) || get(/databases/$(database)/documents/days/$(dayId)/orders/$(id)).data.ownerId==request.resource.data.ownerId);
-   allow update: if signedIn() && validPerson(request.resource.data,id) && request.resource.data.name==resource.data.name && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && request.resource.data.ownerId==request.auth.uid;
+   allow update: if customerAccount() && validPerson(request.resource.data,id) && request.resource.data.name==resource.data.name && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && request.resource.data.ownerId==request.auth.uid;
    allow delete: if false;
   }
   function groupPerson(name){return name.lower().replace('Đ','đ').replace('[\\s]+',' ');}
@@ -417,23 +422,23 @@ service cloud.firestore {
     && bankMoney(d,get(/databases/$(database)/documents/paymentGroups/$(code)/items/$(key)).data.amount) && !exists(/databases/$(database)/documents/paymentGroupSettlements/$(code)/items/$(key)) && marker.reference==code && marker.createdAt==request.time && marker.createdBy==request.auth.uid;
   }
   match /paymentGroups/{code}{
-   allow get: if signedIn();allow list: if admin() || (signedIn() && resource.data.requestedBy==request.auth.uid);
-   allow create: if signedIn() && validGroup(request.resource.data,code) && request.resource.data.requestedBy==request.auth.uid && request.resource.data.createdAt==request.time && request.resource.data.state=='building' && request.resource.data.count==0 && request.resource.data.amount==0 && request.resource.data.ownerIds==[] && request.resource.data.lastItemKey=='' && request.resource.data.invalidatedDayId=='' && request.resource.data.invalidatedOrderId=='' && groupBank(request.resource.data) && !exists(/databases/$(database)/documents/paymentIntents/$(code));
-   allow update: if signedIn() && validGroup(request.resource.data,code) && (
+   allow get: if customerAccount();allow list: if admin() || (customerAccount() && resource.data.requestedBy==request.auth.uid);
+   allow create: if customerAccount() && validGroup(request.resource.data,code) && request.resource.data.requestedBy==request.auth.uid && request.resource.data.createdAt==request.time && request.resource.data.state=='building' && request.resource.data.count==0 && request.resource.data.amount==0 && request.resource.data.ownerIds==[] && request.resource.data.lastItemKey=='' && request.resource.data.invalidatedDayId=='' && request.resource.data.invalidatedOrderId=='' && groupBank(request.resource.data) && !exists(/databases/$(database)/documents/paymentIntents/$(code));
+   allow update: if customerAccount() && validGroup(request.resource.data,code) && (
     groupAppend(request.resource.data,code) || groupInvalidation(request.resource.data,code)
     || (request.auth.uid==resource.data.requestedBy && resource.data.state=='building' && request.resource.data.state=='ready' && request.resource.data.count==request.resource.data.expectedCount && request.resource.data.count>0 && request.time<resource.data.expiresAt && groupBank(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state','updatedAt']))
     || (paymentBot() && resource.data.state=='ready' && request.resource.data.state=='paid' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state','updatedAt']) && getAfter(/databases/$(database)/documents/paymentReceipts/$(code)).data.createdAt==request.time && getAfter(/databases/$(database)/documents/paymentReceipts/$(code)).data.createdBy==request.auth.uid));
    allow delete: if false;
-   match /items/{key}{allow read: if signedIn();allow create: if signedIn() && validGroupItem(request.resource.data,code,key);allow update,delete: if false;}
+   match /items/{key}{allow read: if customerAccount();allow create: if customerAccount() && validGroupItem(request.resource.data,code,key);allow update,delete: if false;}
   }
-  match /paymentGroupSettlements/{code}/items/{key}{allow read: if signedIn();allow create: if paymentBot() && validGroupSettlement(request.resource.data,code,key);allow update,delete: if false;}
+  match /paymentGroupSettlements/{code}/items/{key}{allow read: if customerAccount();allow create: if paymentBot() && validGroupSettlement(request.resource.data,code,key);allow update,delete: if false;}
 
-  match /settings/payment{allow read: if signedIn();allow create,update: if admin() && (validBankPayment(request.resource.data) || validLegacyPayment(request.resource.data));allow delete: if false;}
-  match /paymentIntegrations/{uid}{allow get: if admin() || (signedIn() && uid==request.auth.uid);allow list: if admin();allow create: if validIntegration(request.resource.data,uid,true);allow update: if validIntegration(request.resource.data,uid,false);allow delete: if false;}
-  match /paymentIntents/{code}{allow get: if signedIn() && (paymentBot() || admin() || (resource!=null && resource.data.ownerId==request.auth.uid));allow list: if admin();allow create: if signedIn() && validPaymentIntent(request.resource.data,code);allow update,delete: if false;}
+  match /settings/payment{allow read: if customerAccount();allow create,update: if admin() && (validBankPayment(request.resource.data) || validLegacyPayment(request.resource.data));allow delete: if false;}
+  match /paymentIntegrations/{uid}{allow get: if admin() || (customerAccount() && uid==request.auth.uid);allow list: if admin();allow create: if validIntegration(request.resource.data,uid,true);allow update: if validIntegration(request.resource.data,uid,false);allow delete: if false;}
+  match /paymentIntents/{code}{allow get: if customerAccount() && (paymentBot() || admin() || (resource!=null && resource.data.ownerId==request.auth.uid));allow list: if admin();allow create: if customerAccount() && validPaymentIntent(request.resource.data,code);allow update,delete: if false;}
   match /paymentLinks/{dayId}/orders/{orderId}{allow get: if paymentOrderAccess(dayId,orderId);allow list: if admin();allow create,update: if paymentOrderAccess(dayId,orderId) && !paymentBot() && editableLinkedOrder(dayId,orderId) && (request.resource.data.get('kind','single')=='group'?validGroupLink(request.resource.data,dayId,orderId):validSinglePaymentLink(request.resource.data,dayId,orderId));allow delete: if paymentOrderAccess(dayId,orderId) && !paymentBot() && editableLinkedOrder(dayId,orderId);}
   match /paymentReceipts/{code}{
-   allow get: if signedIn() && (paymentBot() || admin() || get(/databases/$(database)/documents/paymentIntents/$(code)).data.ownerId==request.auth.uid);allow list: if admin();
+   allow get: if customerAccount() && (paymentBot() || admin() || get(/databases/$(database)/documents/paymentIntents/$(code)).data.ownerId==request.auth.uid);allow list: if admin();
    allow create: if paymentBot() && (exists(/databases/$(database)/documents/paymentGroups/$(code))?validGroupReceipt(request.resource.data,code):validPaymentReceipt(request.resource.data,code));allow update,delete: if false;
   }
   match /paymentTransactions/{key}{
@@ -457,13 +462,14 @@ service cloud.firestore {
    let m=/databases/$(database)/documents/merchants/$(id);
    return googleUser() && activeUser() && exists(p) && get(p).data.enabled==true && get(p).data.merchantId==id && exists(m) && get(m).data.active==true;
   }
+  function merchantDayAccess(dayId){let p=/databases/$(database)/documents/merchantDays/$(dayId);return signedIn() && exists(p) && merchantStaff(get(p).data.merchantId);}
   function merchantRole(id,roles){return merchantStaff(id) && get(/databases/$(database)/documents/merchantUsers/$(request.auth.uid)).data.role in roles;}
   function merchantEditor(dayId){let p=/databases/$(database)/documents/merchantDays/$(dayId);return googleUser() && exists(p) && merchantRole(get(p).data.merchantId,['owner','manager']);}
   function validMerchant(d){return d.keys().hasAll(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy']) && d.keys().hasOnly(['name','phone','address','active','createdAt','createdBy','updatedAt','updatedBy']) && validText(d.name,100) && d.phone is string && d.phone.size()<=30 && d.address is string && d.address.size()<=300 && d.active is bool && validUid(d.createdBy) && d.createdAt is timestamp && d.updatedBy==request.auth.uid && d.updatedAt==request.time;}
   function validMerchantUser(d){return d.keys().hasAll(['merchantId','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['merchantId','role','enabled','createdAt','updatedAt','updatedBy']) && validUid(d.merchantId) && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
   function validMerchantBinding(d,dayId){return d.keys().hasAll(['merchantId','date','createdAt','createdBy']) && d.keys().hasOnly(['merchantId','date','createdAt','createdBy']) && validUid(d.merchantId) && exists(/databases/$(database)/documents/merchants/$(d.merchantId)) && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && dayId=='day-'+d.date && d.createdAt==request.time && d.createdBy==request.auth.uid;}
   match /merchants/{id}{
-   allow get: if admin() || merchantStaff(id) || signedIn();
+   allow get: if admin() || merchantStaff(id) || customerAccount();
    allow list: if admin();
    allow create: if admin() && validUid(id) && validMerchant(request.resource.data) && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid;
    allow update: if (admin() || merchantRole(id,['owner','manager'])) && validMerchant(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.createdBy==resource.data.createdBy && (admin() || request.resource.data.active==resource.data.active);
@@ -482,12 +488,14 @@ service cloud.firestore {
   match /merchantUsers/{uid}{
    allow get: if googleUser() && (uid==request.auth.uid || admin() || merchantRole(resource.data.merchantId,['owner']));
    allow list: if admin() || merchantRole(resource.data.merchantId,['owner']);
-   allow create: if validUid(uid) && validMerchantUser(request.resource.data) && request.resource.data.createdAt==request.time && (admin() || (merchantRole(request.resource.data.merchantId,['owner']) && request.resource.data.role!='owner'));
+   // Reclassifying an existing customer account requires a system admin;
+   // restaurant owners cannot lock customers out by adding their known UID.
+   allow create: if validUid(uid) && validMerchantUser(request.resource.data) && request.resource.data.createdAt==request.time && (admin() || (merchantRole(request.resource.data.merchantId,['owner']) && request.resource.data.role!='owner' && !exists(/databases/$(database)/documents/userProfiles/$(uid))));
    allow update: if validMerchantUser(request.resource.data) && request.resource.data.merchantId==resource.data.merchantId && request.resource.data.createdAt==resource.data.createdAt && (admin() || (merchantRole(resource.data.merchantId,['owner']) && resource.data.role!='owner' && request.resource.data.role!='owner' && uid!=request.auth.uid));
    allow delete: if false;
   }
   match /merchantDays/{dayId}{
-   allow get: if signedIn();
+   allow get: if customerAccount() || (resource!=null && merchantStaff(resource.data.merchantId));
    allow list: if admin() || merchantStaff(resource.data.merchantId);
    allow create: if admin() && validMerchantBinding(request.resource.data,dayId);
    allow update,delete: if false;
@@ -499,7 +507,7 @@ service cloud.firestore {
   function merchantStatusEvent(d,dayId){let p=/databases/$(database)/documents/merchants/$(d.merchantId)/events/$(d.lastEventId);return !exists(p) && getAfter(p).data.kind=='status.change' && getAfter(p).data.dayId==dayId && getAfter(p).data.actorId==request.auth.uid && getAfter(p).data.createdAt==request.time;}
   function fulfillmentStep(a,b){return (a=='accepted' && b=='cooking') || (a=='cooking' && b=='ready') || (a=='ready' && b=='delivering') || (a=='delivering' && b=='completed');}
   match /merchantFulfillments/{dayId}{
-   allow read: if signedIn();
+   allow read: if customerAccount() || merchantDayAccess(dayId);
    allow create: if validFulfillment(request.resource.data,dayId) && request.resource.data.createdAt==request.time && request.resource.data.state=='accepted' && (admin() || merchantRole(request.resource.data.merchantId,['owner','manager'])) && merchantStatusEvent(request.resource.data,dayId);
    allow update: if validFulfillment(request.resource.data,dayId) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.merchantId==resource.data.merchantId && request.resource.data.date==resource.data.date && merchantStatusEvent(request.resource.data,dayId)
     && (admin() || merchantStaff(resource.data.merchantId))
@@ -509,22 +517,22 @@ service cloud.firestore {
   }
 
   match /days/{dayId}{
-   allow read: if signedIn();
+   allow read: if customerAccount() || merchantDayAccess(dayId);
    allow create: if (admin() || (merchantEditor(dayId) && dayId=='day-'+request.resource.data.date && request.resource.data.status=='auto')) && dayId.matches('^[A-Za-z0-9_-]{1,100}$') && validDay(request.resource.data);
    allow update: if (admin() || (merchantEditor(dayId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label','menuCount','updatedAt']))) && validDay(request.resource.data) && request.resource.data.date == resource.data.date;
    allow delete: if false;
    match /dishes/{dishId}{
-    allow read: if signedIn() && parentExists(dayId);
+    allow read: if (customerAccount() || merchantDayAccess(dayId)) && parentExists(dayId);
     allow create,update: if (admin() || merchantEditor(dayId)) && getAfter(/databases/$(database)/documents/days/$(dayId)).data.date is string && validDish(request.resource.data,dishId);
     allow delete: if false;
    }
    match /orders/{orderId}{
     // All app visitors receive an anonymous Firebase session and may view meals.
     // Editing, cancellation, payment and ownership transfer remain checked below.
-    allow get,list: if signedIn() && parentExists(dayId);
-    allow create: if signedIn() && activeUser() && validOrder(request.resource.data,orderId) && (request.resource.data.ownerId == request.auth.uid || admin())
+    allow get,list: if (customerAccount() || merchantDayAccess(dayId)) && parentExists(dayId);
+    allow create: if customerAccount() && activeUser() && validOrder(request.resource.data,orderId) && (request.resource.data.ownerId == request.auth.uid || admin())
      && request.resource.data.createdAt == request.time && request.resource.data.paid == false && request.resource.data.cancelled == false && received(request.resource.data)==0 && refunded(request.resource.data)==0 && voided(request.resource.data)==0 && creditIn(request.resource.data)==0 && creditOut(request.resource.data)==0 && choice(request.resource.data)=='refund' && request.resource.data.get('lastCreditTransferId','')=='' && request.resource.data.get('paymentEventId','')=='' && personOrderAccess(dayId,orderId,request.resource.data) && openDay(dayId) && menuPrice(dayId,request.resource.data);
-    allow update: if signedIn() && parentExists(dayId) && validOrder(request.resource.data,orderId) && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name && (
+    allow update: if customerAccount() && parentExists(dayId) && validOrder(request.resource.data,orderId) && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name && (
      (paymentBot() && (get(/databases/$(database)/documents/paymentLinks/$(dayId)/orders/$(orderId)).data.get('kind','single')=='group'?webhookGroupPayment(dayId,orderId,request.resource.data):webhookPayment(dayId,orderId,request.resource.data)))
      || (request.resource.data.ownerId != resource.data.ownerId && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && editableLinkedOrder(dayId,orderId) && creditPointerMove(dayId,orderId))
      || (editableLinkedOrder(dayId,orderId) && request.resource.data.ownerId == resource.data.ownerId && (

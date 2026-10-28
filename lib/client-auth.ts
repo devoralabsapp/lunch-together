@@ -1,7 +1,8 @@
 import {appendActivity,recordActivity,orderAudit} from './activity';
 import {GoogleAuthProvider,linkWithPopup,signInWithCredential,signOut,setPersistence,inMemoryPersistence,getAuth,connectAuthEmulator,type AuthError} from 'firebase/auth';
 import {deleteApp,initializeApp} from 'firebase/app';
-import {collection,doc,getDoc,getDocs,query,where,setDoc,deleteDoc,runTransaction,serverTimestamp,Timestamp,type Firestore} from 'firebase/firestore';
+import {collection,doc,getDoc,getDocs,query,where,setDoc,deleteDoc,runTransaction,serverTimestamp,Timestamp,getFirestore,connectFirestoreEmulator,type Firestore} from 'firebase/firestore';
+import {assertCustomerAccount} from './portal-access';
 import {ensureUser,firebaseClient} from './firebase-client';
 import {invalidateLinkedGroup} from './payment-group-client';
 import type {MealClient} from './meal-client';
@@ -23,6 +24,7 @@ export async function resumeGuestTransfer(){
  if(transferTask)return transferTask;
  const {auth,db}=firebaseClient(),user=await ensureUser(auth);
  if(user.isAnonymous)return;
+ await assertCustomerAccount(user,db);
  let source:string|null=null;try{source=localStorage.getItem(pendingKey);}catch{return;}if(!source)return;
  if(transferTask)return transferTask;
  transferTask=(async()=>{try{await moveGuestOrders(db,source!,user.uid);localStorage.removeItem(pendingKey);}catch{throw new Error('Một số đơn khách chưa chuyển xong. Vui lòng tải lại trang để thử lại hoặc liên hệ người gom cơm.');}})();
@@ -40,6 +42,9 @@ export async function googleSignIn(){
   try{
    const other=getAuth(secondary);if(auth.emulatorConfig){const c=auth.emulatorConfig;connectAuthEmulator(other,`${c.protocol}://${c.host}:${c.port}`,{disableWarnings:true});}await setPersistence(other,inMemoryPersistence);
    const target=await signInWithCredential(other,credential);
+   const targetDb=getFirestore(secondary,process.env.NEXT_PUBLIC_FIRESTORE_DATABASE_ID||'(default)');
+   if(auth.emulatorConfig){const [host,port]=process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST!.split(':');connectFirestoreEmulator(targetDb,host,Number(port));}
+   await assertCustomerAccount(target.user,targetDb);
    await setDoc(doc(db,'accountLinks',guest.uid),{targetUid:target.user.uid,createdAt:serverTimestamp(),expiresAt:Timestamp.fromMillis(Date.now()+5*60000)});
    localStorage.setItem(pendingKey,guest.uid);
    await signInWithCredential(auth,credential);

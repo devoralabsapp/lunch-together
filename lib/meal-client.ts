@@ -12,12 +12,14 @@ import {rememberOrderName} from './order-name';
 import {isBankAccount} from './payment-model';
 import {placeOrderCart} from './order-cart';
 import {invalidateLinkedGroup} from './payment-group-client';
+import {assertCustomerAccount} from './portal-access';
 
 export class MealClient{
  constructor(public auth:Auth,public db:Firestore,private source:Workspace){}
  async isAdmin(){const u=await ensureUser(this.auth);if(u.isAnonymous)return false;const token=await u.getIdTokenResult();if(token.claims.email_verified!==true||token.signInProvider!=='google.com')return false;const s=await getDoc(doc(this.db,'admins',u.uid));return s.data()?.enabled===true;}
  async statistics(){
   const user=await ensureUser(this.auth);
+  await assertCustomerAccount(user,this.db);
   const days=await getDocs(collection(this.db,'days'));
   const records:StatisticsOrder[]=[];
   for(let i=0;i<days.docs.length;i+=6){
@@ -38,6 +40,7 @@ export class MealClient{
  }
  async read(dayId?:string){
   const user=await ensureUser(this.auth);
+  await assertCustomerAccount(user,this.db);
   const [admin,daysSnapshot,payment,blocked,credits,profile]=await Promise.all([this.isAdmin(),getDocs(query(collection(this.db,'days'),orderBy('date','desc'),limit(366))),getDoc(doc(this.db,'settings','payment')),ownAccess(this),creditBalances(this),getDoc(doc(this.db,'userProfiles',user.uid))]);
   const days=new Map(this.source.days.map(d=>[d.id,d]));
   for(const d of daysSnapshot.docs){const data=d.data();days.set(d.id,{id:d.id,date:data.date,label:data.label,menu:[],menuCount:data.menuCount,source:false,status:data.status});}
@@ -57,6 +60,7 @@ export class MealClient{
  }
  async write(body:Record<string,unknown>){
   const user=await ensureUser(this.auth),admin=await this.isAdmin();
+  await assertCustomerAccount(user,this.db);
   if(body.action==='order'&&await ownAccess(this))throw new Error('Tài khoản này đang tạm khóa đặt cơm. Vui lòng liên hệ quản trị viên.');
   const id=body.action==='day'&&body.create?`day-${String(body.date)}`:String(body.dayId||'');
   if(!/^[\w-]{1,100}$/.test(id))throw new Error('Không tìm thấy ngày đặt cơm.');

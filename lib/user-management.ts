@@ -5,6 +5,7 @@ import {ensureUser} from './firebase-client';
 import {normalizedOrderName} from './order-name';
 import {PRIMARY_ADMIN_UID,validUserId,type ManagedUser,type UserDirectory} from './user-model';
 import {readOrganization,resolveAffiliation} from './organization';
+import {assertCustomerAccount} from './portal-access';
 
 const dateText=(value:DocumentData)=>value?.toDate?.().toISOString()||'';
 function checkUid(uid:string){if(!validUserId(uid))throw new Error('UID người dùng chưa hợp lệ.');}
@@ -16,6 +17,7 @@ export async function ownAccess(client:MealClient){
 }
 export async function syncUserProfile(client:MealClient,preferredName?:string){
  const user=await ensureUser(client.auth),token=await user.getIdTokenResult();
+ await assertCustomerAccount(user,client.db);
  const provider=user.isAnonymous?'anonymous':'google.com';
  if(!user.isAnonymous&&(token.signInProvider!=='google.com'||token.claims.email_verified!==true))return;
  const preferred=preferredName===undefined?undefined:normalizedOrderName(preferredName);
