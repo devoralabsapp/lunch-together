@@ -1,0 +1,3 @@
+.merchant-day-status{display:flex;gap:12px;align-items:center;padding:14px 18px;margin:0 0 22px;border:1px solid var(--line);border-radius:14px;background:var(--theme-soft,#edf7ee);color:var(--green,#255c46)}
+.merchant-day-status strong{display:block;font-size:14px}.merchant-day-status span{font-size:13px}.merchant-day-status small{display:block;font-size:12px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+html[data-theme=retro] .merchant-day-status{border:2px solid #20251f;background:#b9e8cb;box-shadow:4px 4px 0 #20251f;color:#20251f}

@@ -11,6 +11,7 @@ import "./pickup.css";
 import "./users.css";
 import "./payment.css";
 import "./features.css";
+import "./merchant-status.css";
 import "./activity.css";
 import "./personal.css";
 import "./themes.css";

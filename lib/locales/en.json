@@ -941,5 +941,12 @@
   "Playful Retro Neo-Brutalism": "Playful Retro Neo-Brutalism",
   "1 suất: {0}": "1 serving: {0}",
   "{0} suất: {1}": "{0} servings: {1}",
-  "(tiếp theo)": "(continued)"
+  "(tiếp theo)": "(continued)",
+  "Nhà hàng đã nhận đơn": "The restaurant has accepted the orders",
+  "Nhà hàng đang chuẩn bị": "The restaurant is preparing your lunch",
+  "Cơm đã sẵn sàng": "Lunch is ready",
+  "Nhà hàng đang giao cơm": "Your lunch is on the way",
+  "Nhà hàng đã giao xong": "The restaurant has completed delivery",
+  "Nhà hàng chưa xác nhận danh sách": "The restaurant has not accepted the list yet",
+  "Đơn đã cập nhật, chờ nhà hàng xác nhận lại": "Orders have changed; awaiting restaurant confirmation"
 }
