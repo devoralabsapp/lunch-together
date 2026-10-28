@@ -50,3 +50,7 @@ Tab Cửa hàng có danh sách thêm/sửa/xóa và mục Đã lưu trữ để 
 lịch sử thay vì xóa vĩnh viễn. Thực đơn cơ sở hiển thị dạng bảng như Danh mục món.
 Ở Cơm Nhà, Lịch sử đặt cơm → Tạo ngày mới có Nhập thủ công hoặc Liên kết nhà hàng.
 Nhà hàng cần lưu thực đơn cơ sở cho đúng ngày trước khi quản trị tạo ngày liên kết.
+
+## Shared catalog and current publication flow
+
+The catalog is now shared by branches with the same immutable ownerId. Merchant publication saves a dated offer without first requiring a customer assignment. Linked-day creation prefers this published offer, falling back to the private branch menu only when no offer exists. The source revision is checked atomically. See [shared catalog and menus](restaurant-catalog.md) for migration, permissions and the current flow.
