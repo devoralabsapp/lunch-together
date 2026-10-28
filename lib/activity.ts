@@ -1,7 +1,7 @@
 import {collection,doc,setDoc,serverTimestamp,type Firestore,type Transaction,type WriteBatch} from 'firebase/firestore';
 import type {MealClient} from './meal-client';
 import {ensureUser} from './firebase-client';
-export const activityKinds=['app.visit','page.view','auth.signin','auth.signout','order.create','order.update','order.cancel','order.transfer','menu.save','payment.receive','payment.void','payment.refund','payment.qr','bank.received','bank.notice','app.error','payment.settings','credit.choice','credit.apply','user.block','user.role','pickup.draw','share.create','share.revoke','export.pdf','export.jpg','export.csv','profile.update','organization.save','export.personal','import.personal','import.review'] as const;
+export const activityKinds=['app.visit','page.view','auth.signin','auth.signout','order.create','order.update','order.cancel','order.transfer','menu.save','payment.receive','payment.void','payment.refund','payment.qr','bank.received','bank.notice','app.error','payment.settings','credit.choice','credit.apply','user.block','user.role','user.update','user.delete','pickup.draw','share.create','share.revoke','export.pdf','export.jpg','export.csv','profile.update','organization.save','export.personal','import.personal','import.review'] as const;
 export type ActivityKind=typeof activityKinds[number];
 export type ActivityInput={kind:ActivityKind;summary:string;dayId?:string;orderId?:string;reference?:string;details?:unknown};
 function safeDetails(value:unknown){const text=JSON.stringify(value??{});if(text.length>24000)throw new Error('Chi tiết nhật ký quá dài.');return text;}

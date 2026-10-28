@@ -157,7 +157,7 @@ service cloud.firestore {
     && nb.creditInAmount==vb[3]+e.amount && nb.creditOutAmount==vb[4] && nb.receivedAmount==vb[0] && nb.refundedAmount==vb[1] && nb.voidedAmount==vb[2] && nb.surplusChoice==vb[5] && na.paid==(!a.cancelled && ah-e.amount>=a.price*a.quantity) && nb.paid==(bh+e.amount>=b.price*b.quantity);
   }
   match /creditTransfers/{id}{allow read: if customerAccount();allow create: if customerAccount() && validCreditTransfer(request.resource.data,id);allow update,delete: if false;}
-  function validActivity(d){return d.keys().hasAll(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.keys().hasOnly(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.actorId==request.auth.uid && d.createdAt==request.time && d.source in ['app','bank'] && d.kind in ['app.visit','page.view','auth.signin','auth.signout','order.create','order.update','order.cancel','order.transfer','menu.save','payment.receive','payment.void','payment.refund','payment.qr','bank.received','bank.notice','app.error','payment.settings','credit.choice','credit.apply','user.block','user.role','pickup.draw','share.create','share.revoke','export.pdf','export.jpg','export.csv','profile.update','organization.save','export.personal','import.personal','import.review'] && d.summary is string && d.summary.size()>0 && d.summary.size()<=500 && d.details is string && d.details.size()<=24000 && d.dayId is string && d.dayId.size()<=100 && d.orderId is string && d.orderId.size()<=70 && d.reference is string && d.reference.size()<=23;}
+  function validActivity(d){return d.keys().hasAll(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.keys().hasOnly(['kind','actorId','source','summary','dayId','orderId','reference','details','createdAt']) && d.actorId==request.auth.uid && d.createdAt==request.time && d.source in ['app','bank'] && d.kind in ['app.visit','page.view','auth.signin','auth.signout','order.create','order.update','order.cancel','order.transfer','menu.save','payment.receive','payment.void','payment.refund','payment.qr','bank.received','bank.notice','app.error','payment.settings','credit.choice','credit.apply','user.block','user.role','user.update','user.delete','pickup.draw','share.create','share.revoke','export.pdf','export.jpg','export.csv','profile.update','organization.save','export.personal','import.personal','import.review'] && d.summary is string && d.summary.size()>0 && d.summary.size()<=500 && d.details is string && d.details.size()<=24000 && d.dayId is string && d.dayId.size()<=100 && d.orderId is string && d.orderId.size()<=70 && d.reference is string && d.reference.size()<=23;}
   match /activityLogs/{id}{allow read: if customerAccount() && (admin() || resource.data.actorId==request.auth.uid);allow create: if customerAccount() && id.matches('^[A-Za-z0-9_-]{20,32}$') && validActivity(request.resource.data) && (request.resource.data.source=='app' ? !request.resource.data.kind.matches('^bank[.].*') : (paymentBot() && (request.resource.data.kind=='bank.notice' || (request.resource.data.kind=='bank.received' && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdBy==request.auth.uid && getAfter(/databases/$(database)/documents/paymentReceipts/$(request.resource.data.reference)).data.createdAt==request.time))));allow update,delete: if false;}
 
   function validLink(d,sourceUid){
@@ -205,16 +205,19 @@ service cloud.firestore {
     && get(/databases/$(database)/documents/days/$(d.dayId)).data.status == 'closed';
   }
   match /pickupDraws/{date}{allow read: if customerAccount();allow create: if admin() && validPickup(request.resource.data,date);allow update,delete: if false;}
-  function validProfile(d){
+  function validProfileSchema(d){
    return d.keys().hasAll(['displayName','preferredName','email','provider','createdAt','lastSeenAt']) && d.keys().hasOnly(['displayName','preferredName','email','provider','createdAt','lastSeenAt'])
     && d.displayName is string && d.displayName.size()<=100 && d.displayName==d.displayName.trim()
     && d.preferredName is string && d.preferredName.size()<=100 && d.preferredName==d.preferredName.trim()
     && d.email is string && d.email.size()<=254 && d.provider in ['anonymous','google.com']
+    && d.createdAt is timestamp && d.lastSeenAt is timestamp;
+  }
+  function validProfile(d){return validProfileSchema(d)
     && ((d.provider=='anonymous' && request.auth.token.firebase.sign_in_provider=='anonymous' && d.email=='')
      || (d.provider=='google.com' && googleUser() && d.email.size()>0 && d.email==request.auth.token.email))
-    && d.createdAt is timestamp && d.lastSeenAt==request.time;
+    && d.lastSeenAt==request.time;
   }
-  function validUserAccess(d){return d.keys().hasAll(['blocked','updatedBy','updatedAt']) && d.keys().hasOnly(['blocked','updatedBy','updatedAt']) && d.blocked is bool && d.updatedBy==request.auth.uid && validUid(d.updatedBy) && d.updatedAt==request.time;}
+  function validUserAccess(d){return d.keys().hasAll(['blocked','updatedBy','updatedAt']) && d.keys().hasOnly(['blocked','updatedBy','updatedAt','deletionToken']) && (!('deletionToken' in d) || (d.blocked==true && d.deletionToken is string && d.deletionToken.matches('^[a-f0-9]{32}$'))) && d.blocked is bool && d.updatedBy==request.auth.uid && validUid(d.updatedBy) && d.updatedAt==request.time;}
   function validAdminRole(d){return d.keys().hasAll(['enabled','updatedBy','updatedAt']) && d.keys().hasOnly(['enabled','updatedBy','updatedAt']) && d.enabled is bool && d.updatedBy==request.auth.uid && validUid(d.updatedBy) && d.updatedAt==request.time;}
   function canBlockUser(uid){return admin() && validUid(uid) && uid!=request.auth.uid && uid!='PRIMARY_ADMIN_UID_HERE' && (!existsAfter(/databases/$(database)/documents/admins/$(uid)) || getAfter(/databases/$(database)/documents/admins/$(uid)).data.enabled!=true);}
   function canChangeRole(uid,d){
@@ -222,11 +225,26 @@ service cloud.firestore {
     && (!d.enabled || (existsAfter(/databases/$(database)/documents/userProfiles/$(uid)) && getAfter(/databases/$(database)/documents/userProfiles/$(uid)).data.provider=='google.com'
      && (!existsAfter(/databases/$(database)/documents/userAccess/$(uid)) || getAfter(/databases/$(database)/documents/userAccess/$(uid)).data.blocked==false)));
   }
+  // Deletion locks cover on-behalf orders and ownership transfers too.
+  function accountWritable(uid){let p=/databases/$(database)/documents/userAccess/$(uid);return !exists(p) || (get(p).data.get('deletionToken','')=='' && get(p).data.get('deleted',false)==false);}
+  function editUserAllowed(uid){return admin() && (uid==request.auth.uid || primaryAdmin() || canBlockUser(uid));}
+  // Only the existing restricted server identity completes an admin's deletion
+  // lock after server-side history checks. Browser clients cannot delete users.
+  function userDeletionService(uid){
+   let p=/databases/$(database)/documents/userAccess/$(uid);let before=get(p).data;let after=getAfter(p).data;
+   return paymentBot() && validUid(uid) && uid!='PRIMARY_ADMIN_UID_HERE'
+    && (!existsAfter(/databases/$(database)/documents/admins/$(uid)) || getAfter(/databases/$(database)/documents/admins/$(uid)).data.enabled!=true)
+    && !exists(/databases/$(database)/documents/paymentIntegrations/$(uid))
+    && before.get('deleted',false)==false && before.blocked==true && before.get('deletionToken','').matches('^[a-f0-9]{32}$')
+    && get(/databases/$(database)/documents/admins/$(before.updatedBy)).data.enabled==true
+    && after.deleted==true && after.blocked==true && after.deletionToken==before.deletionToken && after.deletedBy==before.updatedBy && after.deletedAt==request.time && after.updatedBy==request.auth.uid && after.updatedAt==request.time;
+  }
+  function validDeletedUserAccess(d,uid){return d.keys().hasAll(['blocked','deleted','deletedBy','deletedAt','deletionToken','updatedBy','updatedAt']) && d.keys().hasOnly(['blocked','deleted','deletedBy','deletedAt','deletionToken','updatedBy','updatedAt']) && validUid(d.deletedBy) && validUid(d.updatedBy) && d.deletionToken is string && d.deletionToken.matches('^[a-f0-9]{32}$') && userDeletionService(uid) && !existsAfter(/databases/$(database)/documents/userProfiles/$(uid)) && !existsAfter(/databases/$(database)/documents/personalDetails/$(uid));}
   match /userProfiles/{uid}{
    allow get: if customerAccount() && (request.auth.uid==uid || admin());allow list: if admin();
-   allow create: if customerAccount() && uid==request.auth.uid && validUid(uid) && validProfile(request.resource.data) && request.resource.data.createdAt==request.time;
-   allow update: if customerAccount() && uid==request.auth.uid && validProfile(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt;
-   allow delete: if false;
+   allow create: if customerAccount() && accountWritable(uid) && uid==request.auth.uid && validUid(uid) && validProfile(request.resource.data) && request.resource.data.createdAt==request.time;
+   allow update: if accountWritable(uid) && ((customerAccount() && uid==request.auth.uid && validProfile(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt) || (editUserAllowed(uid) && validProfileSchema(request.resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','preferredName'])));
+   allow delete: if userDeletionService(uid);
   }
   function validCatalog(d,id,department){
    return id.matches('^[A-Za-z0-9_-]{1,100}$') && d.keys().hasAll(['name','active','createdAt','updatedAt','updatedBy'])
@@ -247,7 +265,7 @@ service cloud.firestore {
   match /companies/{id}{allow read: if customerAccount();allow create: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,false) && request.resource.data.createdAt==resource.data.createdAt;allow delete: if catalogDeleteAllowed(id,true);}
   match /departments/{id}{allow read: if customerAccount();allow create: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==request.time;allow update: if admin() && validCatalog(request.resource.data,id,true) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.companyId==resource.data.companyId;allow delete: if catalogDeleteAllowed(id,false);}
   match /settings/organization{allow read: if customerAccount();allow create,update: if admin() && validOrganization(request.resource.data);allow delete: if false;}
-  match /personalDetails/{uid}{allow get: if customerAccount() && (uid==request.auth.uid || admin());allow list: if admin();allow create,update: if customerAccount() && uid==request.auth.uid && validUid(uid) && validPersonalDetails(request.resource.data);allow delete: if false;}
+  match /personalDetails/{uid}{allow get: if customerAccount() && (uid==request.auth.uid || admin());allow list: if admin();allow create,update: if accountWritable(uid) && ((customerAccount() && uid==request.auth.uid) || (editUserAllowed(uid) && existsAfter(/databases/$(database)/documents/userProfiles/$(uid)))) && validUid(uid) && validPersonalDetails(request.resource.data);allow delete: if userDeletionService(uid);}
   function ownsImport(id){return customerAccount() && id.matches('^'+request.auth.uid+'~[a-f0-9]{64}$');}
   function validPersonalExport(d,id){return id.matches('^[a-f0-9]{32}$') && d.keys().hasAll(['ownerId','fileHash','bytes','formatVersion','exportedAt','orderCount','createdBy','createdAt']) && d.keys().hasOnly(['ownerId','fileHash','bytes','formatVersion','exportedAt','orderCount','createdBy','createdAt']) && validUid(d.ownerId) && d.fileHash is string && d.fileHash.matches('^[a-f0-9]{64}$') && d.bytes is int && d.bytes>0 && d.bytes<=10000000 && d.formatVersion==2 && d.exportedAt is string && d.exportedAt.size()<=40 && d.exportedAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$') && d.orderCount is int && d.orderCount>=0 && d.orderCount<=20000 && d.createdBy==request.auth.uid && d.createdAt==request.time;}
   match /personalExports/{id}{allow get: if customerAccount() && (paymentBot() || admin() || (resource!=null && resource.data.ownerId==request.auth.uid));allow list: if false;allow create: if paymentBot() && validPersonalExport(request.resource.data,id);allow update,delete: if false;}
@@ -275,7 +293,8 @@ service cloud.firestore {
   }
   match /userAccess/{uid}{
    allow get: if signedIn() && (request.auth.uid==uid || admin());allow list: if admin();
-   allow create,update: if canBlockUser(uid) && validUserAccess(request.resource.data);allow delete: if false;
+   allow create: if canBlockUser(uid) && validUserAccess(request.resource.data);
+   allow update: if (canBlockUser(uid) && resource.data.get('deleted',false)==false && validUserAccess(request.resource.data)) || validDeletedUserAccess(request.resource.data,uid);allow delete: if false;
   }
   match /admins/{uid}{
    allow get: if (googleUser() && request.auth.uid==uid) || admin();allow list: if admin();
@@ -530,11 +549,11 @@ service cloud.firestore {
     // All app visitors receive an anonymous Firebase session and may view meals.
     // Editing, cancellation, payment and ownership transfer remain checked below.
     allow get,list: if (customerAccount() || merchantDayAccess(dayId)) && parentExists(dayId);
-    allow create: if customerAccount() && activeUser() && validOrder(request.resource.data,orderId) && (request.resource.data.ownerId == request.auth.uid || admin())
+    allow create: if customerAccount() && activeUser() && accountWritable(request.resource.data.ownerId) && validOrder(request.resource.data,orderId) && (request.resource.data.ownerId == request.auth.uid || admin())
      && request.resource.data.createdAt == request.time && request.resource.data.paid == false && request.resource.data.cancelled == false && received(request.resource.data)==0 && refunded(request.resource.data)==0 && voided(request.resource.data)==0 && creditIn(request.resource.data)==0 && creditOut(request.resource.data)==0 && choice(request.resource.data)=='refund' && request.resource.data.get('lastCreditTransferId','')=='' && request.resource.data.get('paymentEventId','')=='' && personOrderAccess(dayId,orderId,request.resource.data) && openDay(dayId) && menuPrice(dayId,request.resource.data);
     allow update: if customerAccount() && parentExists(dayId) && validOrder(request.resource.data,orderId) && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.name == resource.data.name && (
      (paymentBot() && (get(/databases/$(database)/documents/paymentLinks/$(dayId)/orders/$(orderId)).data.get('kind','single')=='group'?webhookGroupPayment(dayId,orderId,request.resource.data):webhookPayment(dayId,orderId,request.resource.data)))
-     || (request.resource.data.ownerId != resource.data.ownerId && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && editableLinkedOrder(dayId,orderId) && creditPointerMove(dayId,orderId))
+     || (request.resource.data.ownerId != resource.data.ownerId && accountWritable(resource.data.ownerId) && accountWritable(request.resource.data.ownerId) && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','updatedAt']) && recipient(resource.data.ownerId) && editableLinkedOrder(dayId,orderId) && creditPointerMove(dayId,orderId))
      || (editableLinkedOrder(dayId,orderId) && request.resource.data.ownerId == resource.data.ownerId && (
       (choice(request.resource.data)!=choice(resource.data) && (ownOrder() || admin()) && surplusChange(dayId,orderId,request.resource.data))
       || (request.resource.data.get('lastCreditTransferId','')!=resource.data.get('lastCreditTransferId','') && linkedCreditTransfer(dayId,orderId,request.resource.data))

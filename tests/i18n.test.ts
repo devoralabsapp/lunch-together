@@ -34,6 +34,7 @@ test('localized money stays in VND and dates use Vietnam time across midnight',(
 test('all literal UI translations and lazy loading messages have English copy',()=>{
  const dictionary:Record<string,string>=english;
  const files=['app/rice-app.tsx','app/statistics-panel.tsx','app/pickup-panel.tsx','app/users-panel.tsx','app/payment-panel.tsx','components/google-login.tsx','components/i18n-provider.tsx','components/theme-provider.tsx','app/signin/page.tsx','app/group-payment-panel.tsx','app/order-cart-fields.tsx','app/restaurant-actions.tsx','app/restaurant-share-view.tsx','app/order-payment-status.tsx','app/order-edit-finance.tsx','app/activity-panel.tsx','app/my-orders-payment.tsx','app/account-button.tsx','app/personal-panel.tsx','app/organization-panel.tsx','app/personal-import-review.tsx'];
+ files.push('app/user-editor.tsx');
  const missing:string[]=[];
  for(const file of files){
   const source=ts.createSourceFile(file,fs.readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
