@@ -1,4 +1,11 @@
 rules_version = '2';
+// merchantTeamUsers/{businessId}~{uid}: businessId/uid immutable, sourceStoreId,
+// email<=254 (verified directory or empty), role enum, enabled bool, createdAt immutable,
+// updatedAt/request.time, updatedBy/current UID. Explicit grant overrides legacy scope.
+// merchantEmailDirectory/{email hash}: uid immutable, verified normalized email, updatedAt.
+// Exact get only; owners/admins resolve approved identities, never list the directory.
+// merchantEmailLookups/{actorUid}: exact emailHash/sourceStoreId, createdAt=request.time;
+// owner/admin-only intent authorizes that one hash for at most two minutes.
 // Prototype rules tested against the app's Web SDK queries and attack cases.
 // days/{id}: date (immutable), label100, status enum, cutoffAt timestamp,
 // menuCount1..60, updatedAt. dishes/{hash}: name160, price int, active bool,
@@ -478,6 +485,9 @@ service cloud.firestore {
   // actorId/current UID, createdAt/request.time; immutable, merchant/admin read.
   function merchantAccountEnabled(uid){let member=get(/databases/$(database)/documents/merchantUsers/$(uid));let application=get(/databases/$(database)/documents/merchantApplications/$(uid));let access=get(/databases/$(database)/documents/userAccess/$(uid));return member!=null && member.data.enabled==true && (application==null || application.data.status!='disabled') && (access==null || access.data.blocked==false);}
   function merchantCanCreate(){let application=get(/databases/$(database)/documents/merchantApplications/$(request.auth.uid));let member=get(/databases/$(database)/documents/merchantUsers/$(request.auth.uid));return googleUser() && merchantAccountEnabled(request.auth.uid) && ((application!=null && application.data.status=='approved') || member.data.role=='owner');}
+  function merchantBusinessMember(businessId){let grant=get(/databases/$(database)/documents/merchantTeamUsers/$(businessId+'~'+request.auth.uid));return googleUser() && grant!=null && grant.data.enabled==true && merchantAccountEnabled(request.auth.uid);}
+  function legacyTeamOwner(businessId){let store=get(/databases/$(database)/documents/merchants/$(businessId));return store!=null && !('ownerId' in store.data) && merchantArchiveOwner(businessId);}
+  function merchantTeamOwner(businessId){let grant=get(/databases/$(database)/documents/merchantTeamUsers/$(businessId+'~'+request.auth.uid));return googleUser() && ((businessId==request.auth.uid && merchantCanCreate()) || (grant!=null && grant.data.enabled==true && grant.data.role=='owner' && merchantAccountEnabled(request.auth.uid)) || legacyTeamOwner(businessId));}
   // Read each account/tenant document once. A disabled explicit grant overrides
   // legacy membership; ownership remains immutable and requires active approval.
   function merchantAssignedRole(id){
@@ -486,8 +496,10 @@ service cloud.firestore {
    let access=get(/databases/$(database)/documents/userAccess/$(request.auth.uid));
    let store=get(/databases/$(database)/documents/merchants/$(id));
    let grant=get(/databases/$(database)/documents/merchantStoreUsers/$(id+'~'+request.auth.uid));
+   let businessId=store!=null?store.data.get('ownerId',id):id;
+   let team=get(/databases/$(database)/documents/merchantTeamUsers/$(businessId+'~'+request.auth.uid));
    return googleUser() && member!=null && member.data.enabled==true && (application==null || application.data.status!='disabled') && (access==null || access.data.blocked==false) && store!=null && store.data.active==true
-    ?(store.data.get('ownerId','')==request.auth.uid?'owner':(grant!=null?(grant.data.enabled==true?grant.data.role:''):(member.data.merchantId==id && member.data.get('accountOnly',false)==false?member.data.role:''))):'';
+    ?(store.data.get('ownerId','')==request.auth.uid?'owner':(team!=null?(team.data.enabled==true?team.data.role:''):(grant!=null?(grant.data.enabled==true?grant.data.role:''):(member.data.merchantId==id && member.data.get('accountOnly',false)==false?member.data.role:'')))):'';
   }
   // archived is optional for legacy stores; an archive always disables operations.
   function merchantArchiveOwner(id){
@@ -536,8 +548,8 @@ service cloud.firestore {
   }
   function validMenuOffer(d,date){return date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && d.keys().hasAll(['date','menuCount','createdAt','createdBy','updatedAt','updatedBy']) && d.keys().hasOnly(['date','menuCount','createdAt','createdBy','updatedAt','updatedBy']) && d.date==date && d.menuCount is int && d.menuCount>=1 && d.menuCount<=60 && d.createdAt is timestamp && validUid(d.createdBy) && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
   match /merchants/{id}{
-   allow get: if admin() || merchantStaff(id) || customerAccount();
-   allow list: if admin() || (googleUser() && merchantAccountEnabled(request.auth.uid) && resource.data.ownerId==request.auth.uid);
+   allow get: if admin() || merchantStaff(id) || (resource!=null && merchantBusinessMember(resource.data.get('ownerId',id))) || customerAccount();
+   allow list: if admin() || (googleUser() && merchantAccountEnabled(request.auth.uid) && (resource.data.ownerId==request.auth.uid || merchantBusinessMember(resource.data.ownerId)));
    allow create: if (admin() || (merchantCanCreate() && request.resource.data.ownerId==request.auth.uid && request.resource.data.active==true && request.resource.data.get('archived',false)==false)) && validUid(id) && validMerchant(request.resource.data) && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid;
    allow update: if validMerchant(request.resource.data) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.createdBy==resource.data.createdBy && request.resource.data.get('ownerId','')==resource.data.get('ownerId','') && (
     admin() || (merchantRole(id,['owner','manager']) && request.resource.data.active==resource.data.active && request.resource.data.get('archived',false)==resource.data.get('archived',false))
@@ -590,6 +602,28 @@ service cloud.firestore {
   }
   match /merchantApprovalEvents/{eventId}{allow read: if admin();allow create: if admin() && eventId.matches('^[a-f0-9]{32}$') && request.resource.data.keys().hasAll(['uid','status','actorId','note','createdAt']) && request.resource.data.keys().hasOnly(['uid','status','actorId','note','createdAt']) && validUid(request.resource.data.uid) && request.resource.data.status in ['approved','rejected','disabled'] && request.resource.data.actorId==request.auth.uid && request.resource.data.note is string && request.resource.data.note.size()<=500 && request.resource.data.createdAt==request.time && getAfter(/databases/$(database)/documents/merchantApplications/$(request.resource.data.uid)).data.reviewEventId==eventId && getAfter(/databases/$(database)/documents/merchantApplications/$(request.resource.data.uid)).data.updatedAt==request.time;allow update,delete: if false;}
   function validStoreUser(d,id){return d.keys().hasAll(['merchantId','uid','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['merchantId','uid','role','enabled','createdAt','updatedAt','updatedBy']) && validUid(d.merchantId) && validUid(d.uid) && id==d.merchantId+'~'+d.uid && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedBy==request.auth.uid && d.updatedAt==request.time;}
+  function validMerchantEmail(d,id){return d.keys().hasAll(['uid','email','updatedAt']) && d.keys().hasOnly(['uid','email','updatedAt']) && validUid(d.uid) && d.email is string && d.email.size()>3 && d.email.size()<=254 && d.email==d.email.lower() && hash(d.email)==id && d.updatedAt==request.time && merchantAccountEnabled(d.uid);}
+  function merchantEmailWriter(d){return (d.uid==request.auth.uid && d.email==request.auth.token.email.lower()) || (admin() && d.email==get(/databases/$(database)/documents/merchantApplications/$(d.uid)).data.email.lower());}
+  function validMerchantEmailLookup(d,uid){return uid==request.auth.uid && d.keys().hasAll(['emailHash','sourceStoreId','createdAt']) && d.keys().hasOnly(['emailHash','sourceStoreId','createdAt']) && d.emailHash is string && d.emailHash.matches('^[a-f0-9]{64}$') && validUid(d.sourceStoreId) && d.createdAt==request.time && (admin() || merchantTeamOwner(catalogBusiness(d.sourceStoreId)));}
+  match /merchantEmailLookups/{uid}{
+   allow get: if googleUser() && (uid==request.auth.uid || admin());allow list,delete: if false;
+   allow create,update: if googleUser() && validMerchantEmailLookup(request.resource.data,uid);
+  }
+  function merchantEmailLookupAllowed(id){let intent=get(/databases/$(database)/documents/merchantEmailLookups/$(request.auth.uid));return intent!=null && intent.data.emailHash==id && intent.data.createdAt+duration.value(2,'m')>=request.time && merchantTeamOwner(catalogBusiness(intent.data.sourceStoreId));}
+  match /merchantEmailDirectory/{id}{
+   allow get: if googleUser() && (id==hash(request.auth.token.email.lower()) || admin() || merchantEmailLookupAllowed(id) || (resource!=null && resource.data.uid==request.auth.uid));
+   allow list,delete: if false;
+   allow create: if googleUser() && validMerchantEmail(request.resource.data,id) && merchantEmailWriter(request.resource.data);
+   allow update: if googleUser() && validMerchantEmail(request.resource.data,id) && merchantEmailWriter(request.resource.data) && request.resource.data.uid==resource.data.uid;
+  }
+  function validTeamUser(d,id){return d.keys().hasAll(['businessId','uid','sourceStoreId','email','role','enabled','createdAt','updatedAt','updatedBy']) && d.keys().hasOnly(['businessId','uid','sourceStoreId','email','role','enabled','createdAt','updatedAt','updatedBy']) && validUid(d.businessId) && validUid(d.uid) && validUid(d.sourceStoreId) && id==d.businessId+'~'+d.uid && catalogBusiness(d.sourceStoreId)==d.businessId && d.email is string && d.email.size()<=254 && (d.email=='' || (d.email==d.email.lower() && get(/databases/$(database)/documents/merchantEmailDirectory/$(hash(d.email))).data.uid==d.uid)) && d.role in ['owner','manager','kitchen'] && d.enabled is bool && d.createdAt is timestamp && d.updatedAt==request.time && d.updatedBy==request.auth.uid;}
+  match /merchantTeamUsers/{id}{
+   allow get: if googleUser() && id.split('~').size()==2 && (id.split('~')[1]==request.auth.uid || admin() || merchantTeamOwner(id.split('~')[0]));
+   allow list: if googleUser() && (resource.data.uid==request.auth.uid || admin() || merchantTeamOwner(resource.data.businessId));
+   allow create: if validTeamUser(request.resource.data,id) && merchantAccountEnabled(request.resource.data.uid) && request.resource.data.createdAt==request.time && request.resource.data.uid!=request.auth.uid && request.resource.data.uid!=request.resource.data.businessId && (admin() || (merchantTeamOwner(request.resource.data.businessId) && request.resource.data.role!='owner'));
+   allow update: if validTeamUser(request.resource.data,id) && (request.resource.data.enabled==false || merchantAccountEnabled(request.resource.data.uid)) && request.resource.data.createdAt==resource.data.createdAt && request.resource.data.uid==resource.data.uid && request.resource.data.businessId==resource.data.businessId && request.resource.data.uid!=request.auth.uid && request.resource.data.uid!=request.resource.data.businessId && (admin() || (merchantTeamOwner(resource.data.businessId) && resource.data.role!='owner' && request.resource.data.role!='owner'));
+   allow delete: if false;
+  }
   match /merchantStoreUsers/{id}{
    allow get: if googleUser() && id.split('~').size()==2 && (id.split('~')[1]==request.auth.uid || admin() || merchantRole(id.split('~')[0],['owner']));
    allow list: if googleUser() && (resource.data.uid==request.auth.uid || admin() || merchantRole(resource.data.merchantId,['owner']));
