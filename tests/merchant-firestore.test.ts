@@ -43,18 +43,19 @@ test('merchant roles share menus and orders while preserving financial and tenan
  await t.test('customer ordering and edits reach the same collection; merchants cannot settle or edit others',async()=>{
   await assertSucceeds(setDoc(doc(customer,'days',dayId,'orders',orderId),{name:'Khách mẫu',ownerId:'sample-customer',dishId:dish,dish:'Đậu hũ mẫu',price:40000,quantity:1,note:'Ít cơm, không hành',paid:false,cancelled:false,createdAt:now(),updatedAt:now()}));
   await assertSucceeds(updateDoc(doc(customer,'days',dayId,'orders',orderId),{quantity:2,updatedAt:now()}));
-  assert.equal((await getDoc(doc(manager,'days',dayId,'orders',orderId))).data()!.quantity,2);
+  await assertFails(getDoc(doc(manager,'days',dayId,'orders',orderId)));await assertFails(getDocs(collection(manager,'days',dayId,'orders')));
   await assertFails(updateDoc(doc(manager,'days',dayId,'orders',orderId),{paid:true,updatedAt:now()}));
   await assertFails(updateDoc(doc(manager,'days',dayId,'orders',orderId),{quantity:3,updatedAt:now()}));
   await assertFails(getDoc(doc(manager,'settings','paymentIntegrations')));
  });
  async function status(db:Firestore,state:string,hash='a'.repeat(64),withEvent=true){
   const ref=doc(db,'merchantFulfillments',dayId),old=await getDoc(ref),id=randomUUID().replaceAll('-',''),batch=writeBatch(db);
-  batch.set(ref,{merchantId,date:'2099-01-01',state,note:'Ghi chú mẫu',orderHash:hash,lastEventId:id,createdAt:old.data()?.createdAt||now(),updatedAt:now(),updatedBy:uid(db)});
+  batch.set(ref,{merchantId,date:'2099-01-01',state,note:'Ghi chú mẫu',orderHash:hash,dispatchId:'c'.repeat(32),lastEventId:id,createdAt:old.data()?.createdAt||now(),updatedAt:now(),updatedBy:uid(db)});
   if(withEvent)batch.set(doc(db,'merchants',merchantId,'events',id),{kind:'status.change',message:'Trạng thái mẫu',dayId,actorId:uid(db),createdAt:now()});
   return batch.commit();
  }
  await t.test('fulfillment follows role-limited steps with an immutable paired event',async()=>{
+  await assertFails(status(manager,'accepted'));await updateDoc(doc(admin,'days',dayId),{status:'closed',closedAt:now(),dispatchId:'c'.repeat(32),updatedAt:now()});
   await assertFails(status(manager,'completed'));
   await assertFails(status(kitchen,'accepted'));
   await assertFails(status(manager,'accepted','a'.repeat(64),false));

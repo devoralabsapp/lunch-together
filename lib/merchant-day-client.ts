@@ -3,6 +3,7 @@ import type {MealClient} from './meal-client';
 import {ensureUser} from './firebase-client';
 import {nameId,validDate,validateMenu} from './meal-client-model';
 import {appendActivity} from './activity';
+import {dayClosureFields} from './day-closure';
 export type MealRestaurant={id:string;name:string};
 export async function mealRestaurants(client:MealClient):Promise<MealRestaurant[]>{
  if(!await client.isAdmin())throw Error('Chỉ quản trị được liên kết nhà hàng.');
@@ -27,7 +28,7 @@ export async function createRestaurantDay(client:MealClient,input:{date:string;m
   if(day.exists()||binding.exists())throw Error('Ngày này đã có thực đơn hoặc đã liên kết nhà hàng.');
   if(merchant.data()?.active!==true||merchant.data()?.archived===true)throw Error('Nhà hàng đang ngừng hoạt động. Vui lòng chọn nhà hàng khác.');
   if(!header.exists()||!header.data().updatedAt?.isEqual(value.revision)||dishes.some((d,i)=>!d.exists()||d.data().active!==true||d.data().name!==value.menu[i].name||d.data().price!==value.menu[i].price))throw Error('Thực đơn nhà hàng vừa thay đổi. Vui lòng tải lại.');
-  tx.set(doc(db,'days',dayId),{date,label:Number(date.slice(8))+'/'+Number(date.slice(5,7)),status,menuCount:value.menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp()});
+  tx.set(doc(db,'days',dayId),{date,label:Number(date.slice(8))+'/'+Number(date.slice(5,7)),status,menuCount:value.menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp(),...dayClosureFields(undefined,status)});
   value.menu.forEach((m,i)=>tx.set(doc(db,'days',dayId,'dishes',ids[i]),{...m,active:true,updatedAt:serverTimestamp()}));
   tx.set(doc(db,'merchantDays',dayId),{merchantId,date,createdAt:serverTimestamp(),createdBy:user.uid});
   tx.set(doc(db,'merchants',merchantId,'events',crypto.randomUUID().replaceAll('-','')),{kind:'day.bind',message:'Liên kết ngày '+date,dayId,actorId:user.uid,createdAt:serverTimestamp()});

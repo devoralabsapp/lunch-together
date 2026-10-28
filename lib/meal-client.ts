@@ -14,6 +14,7 @@ import {placeOrderCart} from './order-cart';
 import {invalidateLinkedGroup} from './payment-group-client';
 import {assertCustomerAccount} from './portal-access';
 import {createRestaurantDay} from './merchant-day-client';
+import {dayClosureFields} from './day-closure';
 
 export class MealClient{
  constructor(public auth:Auth,public db:Firestore,private source:Workspace){}
@@ -44,7 +45,7 @@ export class MealClient{
   await assertCustomerAccount(user,this.db);
   const [admin,daysSnapshot,payment,blocked,credits,profile]=await Promise.all([this.isAdmin(),getDocs(query(collection(this.db,'days'),orderBy('date','desc'),limit(366))),getDoc(doc(this.db,'settings','payment')),ownAccess(this),creditBalances(this),getDoc(doc(this.db,'userProfiles',user.uid))]);
   const days=new Map(this.source.days.map(d=>[d.id,d]));
-  for(const d of daysSnapshot.docs){const data=d.data();days.set(d.id,{id:d.id,date:data.date,label:data.label,menu:[],menuCount:data.menuCount,source:false,status:data.status});}
+  for(const d of daysSnapshot.docs){const data=d.data();days.set(d.id,{id:d.id,date:data.date,label:data.label,menu:[],menuCount:data.menuCount,source:false,status:data.status,closedAt:data.closedAt?.toDate?.().toISOString(),dispatchId:data.dispatchId,cutoffAt:data.cutoffAt?.toDate?.().toISOString()});}
   const now=new Date(),list=mealDays([...days.values()],now);
   for(const d of list)days.set(d.id,d);
   const selected=selectMealDay(list,dayId,now);
@@ -77,10 +78,14 @@ export class MealClient{
    if(!validDate(date)||!['auto','open','closed'].includes(status))throw new Error('Ngày hoặc trạng thái không hợp lệ.');
    const menu=validateMenu(body.menu),old=current.exists()?(await getDocs(collection(this.db,'days',id,'dishes'))).docs:[];
    const dishes=await Promise.all(menu.map(async m=>({...m,id:await nameId(m.name)}))),active=new Set(dishes.map(m=>m.id));
-   const batch=writeBatch(this.db);batch.set(doc(this.db,'days',id),{date,label:current.data()?.label||fallback?.label||`${Number(date.slice(8))}/${Number(date.slice(5,7))}`,status,menuCount:menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp()});
-   for(const d of old)if(!active.has(d.id))batch.update(d.ref,{active:false,updatedAt:serverTimestamp()});
-   for(const d of dishes)batch.set(doc(this.db,'days',id,'dishes',d.id),{name:d.name,price:d.price,active:true,updatedAt:serverTimestamp()});
-   appendActivity(batch,this.db,user.uid,{kind:'menu.save',summary:body.create?'Tạo thực đơn':'Sửa thực đơn hoặc giờ chốt',dayId:id,details:{date,status,menu}});await batch.commit();return this.read(id);
+   await runTransaction(this.db,async tx=>{
+    const fresh=await tx.get(doc(this.db,'days',id));
+    if(fresh.exists()!==current.exists()||fresh.exists()&&!fresh.data().updatedAt?.isEqual(current.data()?.updatedAt))throw Error('Thực đơn vừa thay đổi. Vui lòng tải lại.');
+    tx.set(doc(this.db,'days',id),{date,label:fresh.data()?.label||fallback?.label||`${Number(date.slice(8))}/${Number(date.slice(5,7))}`,status,menuCount:menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp(),...dayClosureFields(fresh.data(),status)});
+    for(const d of old)if(!active.has(d.id))tx.update(d.ref,{active:false,updatedAt:serverTimestamp()});
+    for(const d of dishes)tx.set(doc(this.db,'days',id,'dishes',d.id),{name:d.name,price:d.price,active:true,updatedAt:serverTimestamp()});
+    appendActivity(tx,this.db,user.uid,{kind:'menu.save',summary:body.create?'Tạo thực đơn':'Sửa thực đơn hoặc giờ chốt',dayId:id,details:{date,status,menu}});
+   });return this.read(id);
   }
   const name=cleanName(body.name),orderId=String(body.id||await nameId(name)),orderRef=doc(this.db,'days',id,'orders',orderId);
   let savedName:string|undefined;

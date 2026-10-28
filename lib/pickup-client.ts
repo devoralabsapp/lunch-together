@@ -1,4 +1,5 @@
 import {appendActivity} from './activity';
+import {dayClosureFields} from './day-closure';
 import {collection,doc,getDocFromServer,getDocsFromServer,query,where,runTransaction,serverTimestamp,type DocumentSnapshot,type DocumentData} from 'firebase/firestore';
 import type {MealClient} from './meal-client';
 import {ensureUser} from './firebase-client';
@@ -34,7 +35,14 @@ export async function drawPickup(client:MealClient,dayId:string,count:number){
  const dayRef=doc(client.db,'days',dayId),drawRef=doc(client.db,'pickupDraws',initial.date);
  // Close before querying orders: no guest order can enter or leave the roster
  // between the query and the final transaction. A changed day version is rejected.
- await runTransaction(client.db,async tx=>{const [day,existing]=await Promise.all([tx.get(dayRef),tx.get(drawRef)]);if(existing.exists())return;if(!day.exists()||day.data().date!==initial.date)throw new Error('Ngày đặt cơm vừa thay đổi. Vui lòng cập nhật.');if(day.data().status!=='closed')tx.update(dayRef,{status:'closed',updatedAt:serverTimestamp()});});
+ try{await runTransaction(client.db,async tx=>{const [day,existing]=await Promise.all([tx.get(dayRef),tx.get(drawRef)]);if(existing.exists())return;if(!day.exists()||day.data().date!==initial.date)throw new Error('Ngày đặt cơm vừa thay đổi. Vui lòng cập nhật.');if(day.data().status!=='closed')tx.update(dayRef,{status:'closed',updatedAt:serverTimestamp(),...dayClosureFields(day.data(),'closed')});});}catch(error){
+  // Concurrent closers may be evaluated against the winning dispatch before the
+  // SDK sees a version conflict. Accept only a server-confirmed closed roster;
+  // the final draw transaction still rechecks administrator rights and versions.
+  if(!['permission-denied','aborted'].includes((error as {code?:string}).code||''))throw error;
+  const winner=await getDocFromServer(dayRef),data=winner.data();
+  if(!winner.exists()||data?.date!==initial.date||data.status!=='closed'||!data.closedAt||!/^[a-f0-9]{32}$/.test(data.dispatchId||''))throw error;
+ }
  const locked=await roster(client,dayId),week=pickupWeek(initial.date);
  const result=await runTransaction(client.db,async tx=>{
   const [day,...draws]=await Promise.all([tx.get(dayRef),...week.dates.map(date=>tx.get(doc(client.db,'pickupDraws',date)))]);

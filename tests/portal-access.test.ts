@@ -48,6 +48,7 @@ test('portal-exclusive accounts: admission, revocation, shared kitchen data and 
   await assertSucceeds(getDocs(collection(admin,'merchants','sample-kitchen','catalog')));
  });
  await t.test('merchant reads bound operational meals but cannot read unrelated days',async()=>{
+  await assertFails(getDocs(collection(merchant,'days',day,'orders')));await updateDoc(doc(admin,'days',day),{status:'closed',closedAt:serverTimestamp(),dispatchId:'a'.repeat(32),updatedAt:serverTimestamp()});
   await assertSucceeds(getDoc(doc(merchant,'days',day)));
   await assertSucceeds(getDocs(collection(merchant,'days',day,'orders')));
   await assertFails(getDoc(doc(merchant,'days','day-2099-01-02')));

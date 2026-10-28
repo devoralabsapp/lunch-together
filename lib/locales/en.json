@@ -1004,5 +1004,15 @@
   "Tạo ngày từ thực đơn nhà hàng": "Create a day from a restaurant menu",
   "Vui lòng chọn nhà hàng.": "Select a restaurant.",
   "Đã tạo ngày và liên kết nhà hàng.": "Meal day created and restaurant linked.",
-  "Dùng thực đơn đã đăng gần nhất có hiệu lực vào ngày đã chọn. Liên kết được giữ cố định để bảo toàn lịch sử.": "Use the latest published menu effective on the selected date. The restaurant link is fixed to preserve history."
+  "Dùng thực đơn đã đăng gần nhất có hiệu lực vào ngày đã chọn. Liên kết được giữ cố định để bảo toàn lịch sử.": "Use the latest published menu effective on the selected date. The restaurant link is fixed to preserve history.",
+  "Đã quá 15 phút từ lần chốt đầu tiên, không thể mở lại đơn.": "More than 15 minutes have passed since the first close. Orders cannot be reopened.",
+  "Chỉ có thể mở lại trong 15 phút từ lần chốt đầu tiên.": "Orders can only be reopened within 15 minutes of the first close.",
+  "Chờ quản trị chốt đơn gửi nhà hàng": "Waiting for an administrator to send the closed order list",
+  "Chờ nhà hàng nhận đơn": "Waiting for the restaurant to accept orders",
+  "Đã nhận đơn": "Order accepted",
+  "Đang nấu": "Cooking",
+  "Sẵn sàng": "Ready",
+  "Đang giao": "Delivering",
+  "Hoàn tất": "Completed",
+  "Thực đơn vừa thay đổi. Vui lòng tải lại.": "The menu has changed. Please refresh."
 }
