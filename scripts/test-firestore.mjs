@@ -8,7 +8,9 @@ const cachedJava=path.join(project,'.test-tools','jre-21');
 const javaHome=fs.existsSync(path.join(cachedJava,'bin',process.platform==='win32'?'java.exe':'java'))?cachedJava:(process.env.JAVA_HOME||'');
 const env={...process.env,NEXT_TELEMETRY_DISABLED:'1'};
 if(fs.existsSync(path.join(javaHome,'bin',process.platform==='win32'?'java.exe':'java'))){env.JAVA_HOME=javaHome;env.PATH=path.join(javaHome,'bin')+path.delimiter+env.PATH;}
-const command=`"${process.execPath}" "${path.join(project,'node_modules/tsx/dist/cli.mjs')}" --test "${path.join(project,'tests/*.test.ts')}"`;
+// Auth API-key sign-in belongs to the configured emulator project. Serialize
+// suites that reset that project's fixtures, including API token verification.
+const command=`"${process.execPath}" "${path.join(project,'node_modules/tsx/dist/cli.mjs')}" --test --test-concurrency=1 "${path.join(project,'tests/*.test.ts')}"`;
 const config=JSON.parse(fs.readFileSync('firebase.json','utf8'));
 const ports=new Set();
 async function availablePort(){let p;do{p=await new Promise(resolve=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const address=server.address();server.close(()=>resolve(address.port));});});}while(ports.has(p));ports.add(p);return p;}

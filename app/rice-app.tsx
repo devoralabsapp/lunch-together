@@ -1,6 +1,6 @@
 'use client';
 import {signOut} from 'firebase/auth';
-import {assertCustomerAccount,PortalAccessError,watchCustomerAccount,merchantOnlyMessage} from '../lib/portal-access';
+import {assertCustomerAccount,PortalAccessError,watchCustomerAccount} from '../lib/portal-access';
 import {logVisit,recordActivity} from '../lib/activity';
 import OrderPaymentStatus from './order-payment-status';
 import MyOrdersPayment from './my-orders-payment';
@@ -80,7 +80,7 @@ export default function RiceApp({initial}:{initial:Workspace}){
    void resumeGuestTransfer().then(()=>refresh(explicitDay.current?currentDay.current:'')).catch(e=>{setError(friendlyFirebaseError(e));setLoading(false);});
   });}catch(e){setError(friendlyFirebaseError(e));setLoading(false);}
  },[initial,refresh]);
- useEffect(()=>{const client=mealClient(initial),user=client.auth.currentUser;if(!w.signedIn||!user||user.isAnonymous||user.uid!==w.userId)return;let active=true;const stop=watchCustomerAccount(user,client.db,()=>{if(!active)return;requestRef.current++;setPortalDenied(merchantOnlyMessage);setW({...initial,userId:'',orders:[],cancelledOrders:[],admin:false,signedIn:false,storageReady:false});setPayment(false);setManager(false);setPendingCancel(null);setEditing(null);void signOut(client.auth);},e=>{if(active)setError(friendlyFirebaseError(e));});return ()=>{active=false;stop();};},[initial,w.signedIn,w.userId]);
+ useEffect(()=>{const client=mealClient(initial),user=client.auth.currentUser;if(!user||user.uid!==w.userId)return;let active=true;const stop=watchCustomerAccount(user,client.db,message=>{if(!active)return;requestRef.current++;setPortalDenied(message);setW({...initial,userId:'',orders:[],cancelledOrders:[],admin:false,signedIn:false,storageReady:false});setPayment(false);setManager(false);setPendingCancel(null);setEditing(null);void signOut(client.auth);},e=>{if(active)setError(friendlyFirebaseError(e));});return ()=>{active=false;stop();};},[initial,w.signedIn,w.userId]);
  useEffect(()=>{const timer=setInterval(()=>{if(!busy&&!manager&&!payment&&!pendingCancel)void refresh(explicitDay.current?currentDay.current:'',true);},30000);return()=>clearInterval(timer);},[w.day.id,busy,manager,payment,pendingCancel,refresh]);
  useEffect(()=>{if(!w.userId)return;void logVisit(mealClient(initial)).catch(()=>{});const key=w.userId+':'+tab;if(viewedPage.current===key)return;viewedPage.current=key;void recordActivity(mealClient(initial),{kind:'page.view',summary:'Xem mục trong ứng dụng',details:{page:tab}}).catch(()=>{});},[initial,w.userId,tab]);
  const modalOpen=manager||payment||!!pendingCancel;

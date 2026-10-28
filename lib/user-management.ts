@@ -4,7 +4,7 @@ import type {MealClient} from './meal-client';
 import {ensureUser} from './firebase-client';
 import {normalizedOrderName} from './order-name';
 import {PRIMARY_ADMIN_UID,validUserId,type ManagedUser,type UserDirectory} from './user-model';
-import {readOrganization,resolveAffiliation} from './organization';
+import {readOrganization,resolveAffiliation,type PersonalDetails} from './organization';
 import {assertCustomerAccount} from './portal-access';
 
 const dateText=(value:DocumentData)=>value?.toDate?.().toISOString()||'';
@@ -35,14 +35,14 @@ export async function listManagedUsers(client:MealClient):Promise<UserDirectory>
  function entry(uid:string){let person=records.get(uid);if(!person){person={uid,displayName:'',preferredName:'',email:'',provider:'unknown',createdAt:'',lastSeenAt:'',admin:false,blocked:false,orderCount:0,lastOrderDate:'',aliases:[]};records.set(uid,person);}return person;}
  for(const profile of profiles.docs){const p=profile.data();Object.assign(entry(profile.id),{displayName:p.displayName,preferredName:p.preferredName,email:p.email,provider:p.provider,createdAt:dateText(p.createdAt),lastSeenAt:dateText(p.lastSeenAt)});}
  for(const role of roles.docs)entry(role.id).admin=role.data().enabled===true;
- for(const state of access.docs)entry(state.id).blocked=state.data().blocked===true;
- for(const detail of details.docs){const value=resolveAffiliation(organization,detail.data());Object.assign(entry(detail.id),value,{affiliation:[organization.companies.find(c=>c.id===value.companyId)?.name,organization.departments.find(d=>d.id===value.departmentId)?.name].filter(Boolean).join(' · ')});}
+ for(const state of access.docs)Object.assign(entry(state.id),{blocked:state.data().blocked===true,deleted:state.data().deleted===true});
+ for(const detail of details.docs){const data=detail.data(),value=resolveAffiliation(organization,data);Object.assign(entry(detail.id),value,{phone:String(data.phone||''),jobTitle:String(data.jobTitle||''),affiliation:[organization.companies.find(c=>c.id===value.companyId)?.name,organization.departments.find(d=>d.id===value.departmentId)?.name].filter(Boolean).join(' · ')});}
  for(let i=0;i<days.docs.length;i+=6){await Promise.all(days.docs.slice(i,i+6).map(async day=>{
   const orders=await getDocs(collection(client.db,'days',day.id,'orders'));
-  for(const order of orders.docs){const o=order.data();if(typeof o.ownerId!=='string'||!validUserId(o.ownerId))continue;const person=entry(o.ownerId);if(o.cancelled)continue;person.orderCount++;person.lastOrderDate=[person.lastOrderDate,day.data().date].sort().at(-1)||'';if(typeof o.name==='string'&&!person.aliases.includes(o.name)&&person.aliases.length<5)person.aliases.push(o.name);}
+  for(const order of orders.docs){const o=order.data();if(typeof o.ownerId!=='string'||!validUserId(o.ownerId))continue;const person=entry(o.ownerId);person.hasOrderHistory=true;if(o.cancelled)continue;person.orderCount++;person.lastOrderDate=[person.lastOrderDate,day.data().date].sort().at(-1)||'';if(typeof o.name==='string'&&!person.aliases.includes(o.name)&&person.aliases.length<5)person.aliases.push(o.name);}
  }));}
  if(client.auth.currentUser?.uid!==user.uid)throw new Error('Phiên đăng nhập đã thay đổi. Vui lòng tải lại.');
- const users=[...records.values()].map(p=>({...p,displayName:p.displayName||p.preferredName||p.aliases[0]||'Chưa có tên'})).sort((a,b)=>Number(b.uid===PRIMARY_ADMIN_UID)-Number(a.uid===PRIMARY_ADMIN_UID)||Number(b.admin)-Number(a.admin)||a.displayName.localeCompare(b.displayName,'vi'));
+ const users=[...records.values()].filter(p=>!p.deleted).map(p=>({...p,displayName:p.displayName||p.preferredName||p.aliases[0]||'Chưa có tên'})).sort((a,b)=>Number(b.uid===PRIMARY_ADMIN_UID)-Number(a.uid===PRIMARY_ADMIN_UID)||Number(b.admin)-Number(a.admin)||a.displayName.localeCompare(b.displayName,'vi'));
  return {users,canManageRoles:user.uid===PRIMARY_ADMIN_UID,organization};
 }
 export async function setUserBlocked(client:MealClient,uid:string,blocked:boolean){
@@ -63,4 +63,28 @@ export async function setUserAdmin(client:MealClient,uid:string,enabled:boolean)
   if(enabled&&state.data()?.blocked===true)throw new Error('Cần mở lại quyền đặt cơm trước khi cấp quyền quản trị.');
   tx.set(doc(client.db,'admins',uid),{enabled,updatedBy:user.uid,updatedAt:serverTimestamp()});appendActivity(tx,client.db,user.uid,{kind:'user.role',summary:enabled?'Cấp quyền quản trị':'Thu hồi quyền quản trị',details:{targetUid:uid,enabled}});
  });
+}
+
+export async function updateManagedUser(client:MealClient,uid:string,input:PersonalDetails&{preferredName:string}){
+ const user=await requireAdmin(client);checkUid(uid);
+ const preferredName=normalizedOrderName(input.preferredName),phone=input.phone.trim(),jobTitle=input.jobTitle.trim();
+ if(!preferredName||preferredName.length>100||phone.length>30||!/^[-+()0-9 .]*$/.test(phone)||jobTitle.length>100||(!input.companyId&&input.departmentId))throw new Error('Thông tin cá nhân chưa hợp lệ.');
+ const organization=await readOrganization(client),affiliation=resolveAffiliation(organization,input,true);
+ if(affiliation.companyId!==input.companyId||affiliation.departmentId!==input.departmentId)throw new Error('Công ty và phòng ban không khớp hoặc đã ngừng sử dụng.');
+ const profileRef=doc(client.db,'userProfiles',uid),detailsRef=doc(client.db,'personalDetails',uid);
+ await runTransaction(client.db,async tx=>{
+  const [profile,details,role,state]=await Promise.all([tx.get(profileRef),tx.get(detailsRef),tx.get(doc(client.db,'admins',uid)),tx.get(doc(client.db,'userAccess',uid))]);
+  if(!profile.exists())throw new Error('Người dùng cần truy cập ứng dụng một lần để tạo hồ sơ.');
+  if(uid!==user.uid&&user.uid!==PRIMARY_ADMIN_UID&&(uid===PRIMARY_ADMIN_UID||role.data()?.enabled===true))throw new Error('Chỉ quản trị chính được sửa hồ sơ của quản trị viên khác.');
+  if(state.data()?.deleted||state.data()?.deletionToken)throw new Error('Tài khoản đã bị xóa hoặc đang được kiểm tra xóa.');
+  tx.update(profileRef,{displayName:preferredName,preferredName});
+  tx.set(detailsRef,{companyId:input.companyId,departmentId:input.departmentId,phone,jobTitle,updatedAt:serverTimestamp()});
+  appendActivity(tx,client.db,user.uid,{kind:'user.update',summary:'Quản trị cập nhật hồ sơ người dùng',details:{targetUid:uid,before:{preferredName:profile.data()?.preferredName||'',companyId:details.data()?.companyId||'',departmentId:details.data()?.departmentId||''},after:{preferredName,companyId:input.companyId,departmentId:input.departmentId}}});
+ });
+}
+
+export async function deleteManagedUser(client:MealClient,uid:string,request:typeof fetch=fetch){
+ const user=await requireAdmin(client);checkUid(uid);
+ const response=await request('/api/admin/users/delete',{method:'POST',headers:{Authorization:'Bearer '+await user.getIdToken(),'Content-Type':'application/json'},body:JSON.stringify({uid})});
+ const result=await response.json().catch(()=>({}));if(!response.ok||result.deleted!==true)throw new Error(typeof result.error==='string'?result.error:'Chưa xóa được người dùng. Vui lòng thử lại.');
 }
