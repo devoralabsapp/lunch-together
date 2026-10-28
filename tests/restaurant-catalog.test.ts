@@ -39,5 +39,21 @@ test('business-wide catalog and direct restaurant menu publication',{timeout:120
  await t.test('offer dishes require a matching publication revision and cannot be edited independently',async()=>{
   await assertFails(updateDoc(doc(manager,'merchants','store-a','offers',date,'dishes',dishId),{price:39000,updatedAt:serverTimestamp()}));const b=writeBatch(manager);b.update(doc(manager,'merchants','store-a','offers',date),{updatedAt:serverTimestamp(),updatedBy:'sample-manager'});b.update(doc(manager,'merchants','store-a','offers',date,'dishes',dishId),{price:39000,updatedAt:serverTimestamp()});await assertSucceeds(b.commit());assert.equal((await getDoc(doc(admin,'days','day-'+date,'dishes',dishId))).data()!.price,35000);
  });
+ await t.test('a published menu is inherited on later dates without copying a new offer every day',async()=>{
+  for(const d of ['2099-04-02','2099-04-10']){const inherited=await restaurantDayMenu(client,'store-a',d);assert.equal(inherited.menuPath,'merchants/store-a/offers/'+date);assert.equal(inherited.menu[0].price,39000);}
+  await createRestaurantDay(client,{merchantId:'store-a',date:'2099-04-02',status:'auto'});assert.equal((await getDoc(doc(admin,'days','day-2099-04-02','dishes',dishId))).data()!.price,39000);assert.equal((await getDoc(doc(admin,'merchants','store-a','offers','2099-04-02'))).exists(),false);
+ });
+ await t.test('the next publication takes effect from its date and leaves earlier customer snapshots unchanged',async()=>{
+  const d='2099-04-03',b=writeBatch(manager);b.set(doc(manager,'merchants','store-a','offers',d),{date:d,menuCount:1,createdAt:serverTimestamp(),createdBy:'sample-manager',updatedAt:serverTimestamp(),updatedBy:'sample-manager'});b.set(doc(manager,'merchants','store-a','offers',d,'dishes',dishId),price(47000));await b.commit();
+  assert.equal((await restaurantDayMenu(client,'store-a','2099-04-02')).menu[0].price,39000);assert.equal((await restaurantDayMenu(client,'store-a',d)).menu[0].price,47000);assert.equal((await restaurantDayMenu(client,'store-a','2099-05-01')).menu[0].price,47000);
+  assert.equal((await getDoc(doc(admin,'days','day-'+date,'dishes',dishId))).data()!.price,35000);assert.equal((await getDoc(doc(admin,'days','day-2099-04-02','dishes',dishId))).data()!.price,39000);
+ });
+ await t.test('future publication cannot leak backward and an unpublished legacy menu stays a date-specific fallback',async()=>{
+  const future='2099-05-01',legacy='2099-04-30',b=writeBatch(admin);b.set(doc(admin,'merchants','store-b','offers',future),{date:future,menuCount:1,createdAt:serverTimestamp(),createdBy:'sample-admin',updatedAt:serverTimestamp(),updatedBy:'sample-admin'});b.set(doc(admin,'merchants','store-b','offers',future,'dishes',dishId),price(55000));b.set(doc(admin,'merchants','store-b','menus',legacy),{date:legacy,menuCount:1,updatedAt:serverTimestamp(),updatedBy:'sample-admin'});b.set(doc(admin,'merchants','store-b','menus',legacy,'dishes',dishId),price(41000));await b.commit();
+  await assert.rejects(restaurantDayMenu(client,'store-b','2099-04-29'),/chưa có/);assert.equal((await restaurantDayMenu(client,'store-b',legacy)).menu[0].price,41000);assert.equal((await restaurantDayMenu(client,'store-b','2099-05-02')).menu[0].price,55000);
+ });
+ await t.test('inherited menu queries retain merchant staff reads and deny unrelated accounts',async()=>{
+  const staffClient={...client,db:kitchen} as MealClient;assert.equal((await restaurantDayMenu(staffClient,'store-a','2099-04-05')).menu[0].price,47000);await assert.rejects(restaurantDayMenu({...client,db:foreign} as MealClient,'store-a','2099-04-05'));await assert.rejects(restaurantDayMenu({...client,db:guest} as MealClient,'store-a','2099-04-05'));
+ });
  }finally{await env.cleanup();}
 });
