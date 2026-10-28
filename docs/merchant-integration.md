@@ -13,3 +13,7 @@ New merchant management/catalog/activity permissions are scoped to the assigned 
 Quản trị Cơm Nhà đăng nhập ứng dụng merchant, tạo nhà hàng, cấp chủ/quản lý/nhà bếp bằng UID Google và liên kết ngày. Liên kết ngày được giữ cố định để bảo toàn lịch sử. Nhà hàng chỉ đăng thực đơn cho ngày đã gắn, không tự mở lại ngày đã chốt. Khách tiếp tục đặt/sửa/hủy theo quyền cũ.
 
 Trạng thái bếp và ghi chú giao hàng hiện trên Cơm Nhà. Khi khách thay đổi yêu cầu chuẩn bị, hai phía báo cần xác nhận danh sách mới; thay đổi thanh toán đơn thuần không làm bếp phải xác nhận lại. Quyền xác nhận tiền, hoàn và số dư vẫn thuộc hệ thống thanh toán hiện có.
+
+## Approved merchant accounts and multiple branches
+
+New Google users submit a pending application in Merchant. System administrators review it before store operations are enabled. Approved owners may create multiple stores and save independent dated menus at each branch. Staff roles are scoped per store, with legacy grants preserved. Shared customer menu publication still requires an administrator-bound date, and each date retains one restaurant assignment. No financial schemas change. See [approval and branches](merchant-approval.md) and [portal account policy](portal-access.md).

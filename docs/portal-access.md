@@ -1,53 +1,55 @@
 # Portal account separation / Phân loại tài khoản
 
-Both portals share Firebase Google Authentication. Google identity authentication
-is shared, but admission to the wrong portal is refused and that portal's local
-session is signed out before loading its workspace. This does not create separate
-Firebase projects or revoke sessions on other devices.
+Both portals share Firebase Google Authentication. Authentication establishes
+identity; Firestore authorization determines which workspace that identity can use.
 
 | Account | Customer portal | Merchant portal |
 | --- | --- | --- |
-| Verified Google admin, `admins/{uid}.enabled == true` | Yes | Yes |
-| Google account without `merchantUsers/{uid}` | Yes | Refused |
-| Enabled merchant, unblocked account, active restaurant | Refused | Assigned restaurant |
-| Disabled merchant membership | Refused | Refused |
+| Verified Google administrator | Yes | All restaurants and application reviews |
+| New Google applicant, pending/rejected | Yes until approved | Registration/status only |
+| Approved, enabled merchant identity | Refused | Owned stores and assigned staff roles |
+| Existing enabled legacy merchant | Refused | Existing grants; owners can add branches |
+| Suspended merchant identity | Refused | Status only; operations denied |
 | Anonymous guest | Guest ordering | Refused |
 
-Membership existence reserves the Google UID for Merchant even when disabled.
-Existing memberships take effect without migrating profiles, orders, money or
-email addresses. Existing staff-management permissions govern assignment; regular
-users cannot enroll themselves, reassign or delete their membership. Only a system
-administrator can switch an account with an existing customer profile to Merchant;
-restaurant owners can onboard new UIDs without customer profiles. Assigning an
-existing customer to a restaurant switches portal admission while retaining their
-historical data. Use different Google accounts for different non-admin roles.
+New verified Google Merchant sign-ins automatically create a pending application.
+Only a system administrator can approve it, atomically recording an immutable review
+event and an enabled merchant identity. Approval reclassifies an ordinary customer
+account as Merchant; existing customer history remains stored. Pending applicants
+cannot create restaurants, publish menus or read private business collections.
+
+The existence of merchantUsers/{uid} reserves the identity for Merchant even when
+disabled. A rejected applicant may edit and resubmit. Disabled approved users need
+administrator restoration. Blocked/deleted accounts cannot apply or operate.
+Existing explicit legacy grants remain valid without migration. Restaurant owners
+may grant staff access only to already approved/admin-provisioned identities;
+they cannot reclassify an arbitrary customer by entering that customer's UID.
+
+Approved owners create multiple stores. Immutable ownerId identifies ownership;
+merchantStoreUsers grants scoped manager/kitchen roles at multiple stores. An
+explicit disabled store grant overrides a legacy staff grant. Ownership itself
+cannot be transferred or demoted through a staff edit.
 
 Customer admission runs before profile sync, page loading and guest transfer.
-An existing Google account is checked in a separate in-memory authentication
-session before creating a transfer ticket or changing the guest session. Both
-portals watch account privilege changes and sign out locally after losing access.
-Merchant users see a refusal message and can copy their UID for provisioning.
+Merchant operational access is watched continuously. This is account separation,
+not a device lock; customers may still order anonymously. Only verified system
+administrators have the cross-portal operational exception.
 
-Rules independently deny merchants customer profiles/settings, financial access
-and customer order mutations. Active staff retain shared operational day/menu/
-order reads only for dates bound to their restaurant. Customer shared order
-visibility, anonymous ordering and dedicated bank-service authorization continue.
+Rules independently preserve financial authorization, shared customer visibility
+and bank-service permissions. Merchants access shared operational days only when
+bound to their store. Per-branch draft menus are independent of those bindings.
 
 ## Tiếng Việt
 
-Tài khoản thường chỉ dùng một portal. Có hồ sơ nhân sự nhà hàng thì dùng Merchant;
-không có hồ sơ nhân sự thì dùng Cơm Nhà. Chỉ quản trị Google đã xác minh được dùng
-cả hai. Khóa nhân sự không tự chuyển họ sang khách hàng. Cấp quyền nhà hàng cho
-tài khoản khách hiện có sẽ chuyển quyền vào portal sang Merchant, giữ dữ liệu cũ.
-Khách vẫn có thể đặt cơm ẩn danh; đây là giới hạn tài khoản, không khóa thiết bị.
+Đăng nhập Merchant mới chỉ mở màn đăng ký/chờ duyệt. Quản trị vào **Phê duyệt
+Merchant** để duyệt, từ chối, khóa hoặc mở lại. Sau khi duyệt, tài khoản thường
+chuyển sang Merchant, có thể tạo nhiều cơ sở và không vào workspace khách bằng
+cùng tài khoản nữa. Tài khoản quản trị vẫn dùng cả hai portal. Lịch sử cũ được giữ.
 
-## Deployment and tests
+## Deployment and verification
 
-Run `npm test` for Rules, customer admission and existing financial regressions.
-Publish the entire current shared `firestore.rules` before enabling these portal
-versions. No index, environment variable, service key or OIDC setup is added.
-Preserve the public administrator placeholder when syncing public source.
-
-The merchant repository includes a real Auth/Firestore emulator admission test.
-Load shared Rules for `demo-merchant-portal-admission`, set both emulator host
-variables to loopback addresses, then run its test suite. Fixtures are fictional.
+Publish the complete configured customer firestore.rules. Public copies retain
+PRIMARY_ADMIN_UID_HERE and must not replace the configured operator value.
+No new index, environment variable, service key or OIDC setup is required.
+Run customer npm test and Merchant npm test/build/typecheck. Real Auth/Firestore
+emulator fixtures use demo projects and fictional identities only.
