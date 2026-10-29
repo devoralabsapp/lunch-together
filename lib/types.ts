@@ -1,4 +1,4 @@
 export type MenuItem={name:string;price:number};
 export type Order={id:string;dayId:string;name:string;dish:string;price:number;quantity:number;paid:boolean;note:string;actor:string;cancelled:boolean;updatedAt:string;creditInAmount?:number;creditOutAmount?:number;surplusChoice?:'refund'|'carry';receivedAmount?:number;refundedAmount?:number;voidedAmount?:number;canEdit?:boolean};
-export type Day={id:string;date:string;label:string;menu:MenuItem[];source:boolean;status:string;menuCount?:number};
+export type Day={id:string;date:string;label:string;menu:MenuItem[];source:boolean;status:string;menuCount?:number;closedAt?:string;dispatchId?:string;cutoffAt?:string};
 export type Workspace={days:Day[];day:Day;orders:Order[];cancelledOrders?:Order[];creditBalances?:Record<string,number>;creditNotice?:string;members:string[];admin:boolean;userId:string;locked:boolean;blocked?:boolean;importedAt:string;sourceCount:number;sourceUrl:string;paymentAvailable:boolean;paymentUrl?:string;demo:boolean;signedIn:boolean;displayName:string;storageReady:boolean};
