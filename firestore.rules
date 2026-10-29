@@ -63,14 +63,14 @@ service cloud.firestore {
   function hash(value){return hashing.sha256(value.lower().replace('Đ','đ')).toHexString().lower();}
   function openDay(dayId){
    let day=get(/databases/$(database)/documents/days/$(dayId)).data;
-   return day.status == 'open' || (day.status == 'auto' && request.time < day.cutoffAt);
+   return day.get('changing',false)==false && (day.status == 'open' || (day.status == 'auto' && request.time < day.cutoffAt));
   }
   function validDay(d){
-   return d.keys().hasAll(['date','label','status','cutoffAt','menuCount','updatedAt']) && d.keys().hasOnly(['date','label','status','cutoffAt','menuCount','updatedAt','closedAt','dispatchId'])
+   return d.keys().hasAll(['date','label','status','cutoffAt','menuCount','updatedAt']) && d.keys().hasOnly(['date','label','status','cutoffAt','menuCount','updatedAt','closedAt','dispatchId','changing','changeId'])
     && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && validText(d.label,100) && d.status in ['auto','open','closed']
     && d.menuCount is int && d.menuCount>=1 && d.menuCount<=60
     && d.cutoffAt is timestamp && d.cutoffAt == timestamp.date(int(d.date.split('-')[0]),int(d.date.split('-')[1]),int(d.date.split('-')[2])) + duration.value(150,'m')
-    && d.updatedAt == request.time && validClosureFields(d);
+    && d.updatedAt == request.time && validClosureFields(d) && ((!('changing' in d) && !('changeId' in d)) || (d.changing is bool && d.changeId is string && d.changeId.matches('^[a-f0-9]{32}$')));
   }
   // First close is immutable; redispatch cannot extend the reopening deadline.
   function validClosureFields(d){return (!('closedAt' in d) && !('dispatchId' in d) && d.status!='closed') || (d.closedAt is timestamp && d.closedAt<=request.time && d.dispatchId is string && d.dispatchId.matches('^[a-f0-9]{32}$'));}
@@ -82,7 +82,7 @@ service cloud.firestore {
     && (('closedAt' in a)?b.get('closedAt',null)==a.closedAt:(b.status=='closed'?b.closedAt==(a.status=='closed'?a.cutoffAt:request.time):!('closedAt' in b)))
     && (closing?b.dispatchId!=a.get('dispatchId',''):b.get('dispatchId','')==a.get('dispatchId',''));
   }
-  function releasedDay(dayId){let d=get(/databases/$(database)/documents/days/$(dayId));return d!=null && d.data.status=='closed' && d.data.get('closedAt',null) is timestamp && d.data.get('dispatchId','').matches('^[a-f0-9]{32}$');}
+  function releasedDay(dayId){let d=get(/databases/$(database)/documents/days/$(dayId));return d!=null && d.data.get('changing',false)==false && d.data.status=='closed' && d.data.get('closedAt',null) is timestamp && d.data.get('dispatchId','').matches('^[a-f0-9]{32}$');}
   function validDish(d,dishId){
    return d.keys().hasAll(['name','price','active','updatedAt']) && d.keys().hasOnly(['name','price','active','updatedAt']) && validText(d.name,160) && dishId == hash(d.name)
     && d.price is int && d.price>=1000 && d.price<=1000000 && d.active is bool && d.updatedAt == request.time;
@@ -646,8 +646,9 @@ service cloud.firestore {
   match /merchantDays/{dayId}{
    allow get: if customerAccount() || (resource!=null && merchantStaff(resource.data.merchantId));
    allow list: if admin() || merchantStaff(resource.data.merchantId);
-   allow create: if admin() && validMerchantBinding(request.resource.data,dayId);
-   allow update,delete: if false;
+   allow create: if admin() && validMerchantBinding(request.resource.data,dayId) && (!exists(/databases/$(database)/documents/days/$(dayId)) || get(/databases/$(database)/documents/days/$(dayId)).data.get('changing',false)==false || changedBinding(dayId,'',request.resource.data.merchantId));
+   allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['merchantId']) && changedBinding(dayId,resource.data.merchantId,request.resource.data.merchantId);
+   allow delete: if admin() && changedBinding(dayId,resource.data.merchantId,'');
   }
   function validFulfillment(d,dayId){
    let b=get(/databases/$(database)/documents/merchantDays/$(dayId)).data;
@@ -655,6 +656,7 @@ service cloud.firestore {
   }
   function merchantStatusEvent(d,dayId){let p=/databases/$(database)/documents/merchants/$(d.merchantId)/events/$(d.lastEventId);return !exists(p) && getAfter(p).data.kind=='status.change' && getAfter(p).data.dayId==dayId && getAfter(p).data.actorId==request.auth.uid && getAfter(p).data.createdAt==request.time;}
   function fulfillmentStep(a,b){return (a=='accepted' && b=='cooking') || (a=='cooking' && b=='ready') || (a=='ready' && b=='delivering') || (a=='delivering' && b=='completed');}
+
   match /merchantFulfillments/{dayId}{
    allow read: if customerAccount() || merchantDayAccess(dayId);
    allow create: if validFulfillment(request.resource.data,dayId) && request.resource.data.createdAt==request.time && request.resource.data.state=='accepted' && (admin() || merchantRole(request.resource.data.merchantId,['owner','manager'])) && merchantStatusEvent(request.resource.data,dayId);
@@ -662,13 +664,40 @@ service cloud.firestore {
     && (admin() || merchantStaff(resource.data.merchantId))
     && ((request.resource.data.dispatchId==resource.data.get('dispatchId','') && fulfillmentStep(resource.data.state,request.resource.data.state) && request.resource.data.orderHash==resource.data.orderHash && (admin() || merchantRole(resource.data.merchantId,['owner','manager']) || request.resource.data.state in ['cooking','ready']))
      || (request.resource.data.state=='accepted' && (request.resource.data.orderHash!=resource.data.orderHash || request.resource.data.dispatchId!=resource.data.get('dispatchId','')) && (admin() || merchantRole(resource.data.merchantId,['owner','manager']))));
+   allow delete: if admin() && archiveFulfillmentForChange(dayId,resource.data);
+  }
+
+
+  // mealDayChanges: admin-only durable replacement jobs. Normal reopening keeps
+  // the 15-minute limit; only a completed, audited source change resets the cycle.
+  function boundMerchant(dayId){let b=get(/databases/$(database)/documents/merchantDays/$(dayId));return b==null?'':b.data.merchantId;}
+  function activeChangeTarget(id){return id=='' || (validUid(id) && get(/databases/$(database)/documents/merchants/$(id)).data.active==true && get(/databases/$(database)/documents/merchants/$(id)).data.get('archived',false)==false);}
+  function validDayChange(j,id){return id.matches('^[a-f0-9]{32}$') && j.keys().hasAll(['dayId','date','fromMerchantId','toMerchantId','menuJson','menuCount','phase','createdAt','createdBy','updatedAt','completedAt']) && j.keys().hasOnly(['dayId','date','fromMerchantId','toMerchantId','menuJson','menuCount','phase','createdAt','createdBy','updatedAt','completedAt']) && j.dayId is string && j.dayId.matches('^[A-Za-z0-9_-]{1,100}$') && j.date is string && j.date==get(/databases/$(database)/documents/days/$(j.dayId)).data.date && j.fromMerchantId is string && j.fromMerchantId.size()<=128 && j.toMerchantId is string && j.toMerchantId.size()<=128 && j.fromMerchantId!=j.toMerchantId && activeChangeTarget(j.toMerchantId) && j.menuJson is string && j.menuJson.size()>0 && j.menuJson.size()<=24000 && j.menuCount is int && j.menuCount>=1 && j.menuCount<=60 && j.phase in ['cancelling','completed'] && j.createdAt is timestamp && validUid(j.createdBy) && j.updatedAt==request.time && (j.phase=='cancelling'?j.completedAt==null:j.completedAt==request.time);}
+  function changeFieldsSame(a,b){return b.get('changing',false)==a.get('changing',false) && b.get('changeId','')==a.get('changeId','');}
+  function startingDayChange(dayId,a,b){let p=/databases/$(database)/documents/mealDayChanges/$(b.get('changeId',''));let j=getAfter(p).data;return a.get('changing',false)==false && b.changing==true && b.changeId!=a.get('changeId','') && b.diff(a).affectedKeys().hasOnly(['changing','changeId','updatedAt']) && !exists(p) && j.dayId==dayId && j.phase=='cancelling' && j.createdAt==request.time && j.createdBy==request.auth.uid && j.fromMerchantId==boundMerchant(dayId);}
+  function finishingDayChange(dayId,a,b){let p=/databases/$(database)/documents/mealDayChanges/$(a.get('changeId',''));let old=get(p).data;let j=getAfter(p).data;return a.get('changing',false)==true && b.changing==false && b.changeId==a.changeId && b.status=='open' && !('closedAt' in b) && !('dispatchId' in b) && old.phase=='cancelling' && j.phase=='completed' && j.updatedAt==request.time && j.completedAt==request.time && j.dayId==dayId && b.menuCount==j.menuCount && j.toMerchantId==(existsAfter(/databases/$(database)/documents/merchantDays/$(dayId))?getAfter(/databases/$(database)/documents/merchantDays/$(dayId)).data.merchantId:'');}
+  function changedBinding(dayId,from,to){let a=get(/databases/$(database)/documents/days/$(dayId)).data;let b=getAfter(/databases/$(database)/documents/days/$(dayId)).data;let j=getAfter(/databases/$(database)/documents/mealDayChanges/$(a.get('changeId',''))).data;return finishingDayChange(dayId,a,b) && j.fromMerchantId==from && j.toMerchantId==to;}
+  function validDayJobCancellation(d,dayId,orderId){let a=resource.data;let day=get(/databases/$(database)/documents/days/$(dayId)).data;let j=get(/databases/$(database)/documents/mealDayChanges/$(day.get('changeId',''))).data;return d.cancelled==true && a.cancelled==false && day.get('changing',false)==true && admin() && j.phase=='cancelling' && j.dayId==dayId && parentExists(dayId) && d.createdAt==a.createdAt && d.name==a.name && d.ownerId==a.ownerId && d.paid==false && samePrice(d) && d.receivedAmount==received(a) && d.refundedAmount==a.get('refundedAmount',0) && d.voidedAmount==a.get('voidedAmount',0) && d.creditInAmount==a.get('creditInAmount',0) && d.creditOutAmount==a.get('creditOutAmount',0) && d.surplusChoice==a.get('surplusChoice','refund') && derivedPaid(d) && editableLinkedOrder(dayId,orderId) && d.diff(a).affectedKeys().hasOnly(['cancelled','paid','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','updatedAt']);}
+  function lockedDayChange(dayId){let day=get(/databases/$(database)/documents/days/$(dayId)).data;let j=get(/databases/$(database)/documents/mealDayChanges/$(day.get('changeId',''))).data;return day.get('changing',false)==true && j.phase=='cancelling' && j.dayId==dayId;}
+  function archiveFulfillmentForChange(dayId,value){let a=get(/databases/$(database)/documents/days/$(dayId)).data;let b=getAfter(/databases/$(database)/documents/days/$(dayId)).data;return finishingDayChange(dayId,a,b) && getAfter(/databases/$(database)/documents/mealDayChanges/$(a.changeId)/fulfillmentArchive/previous).data==value;}
+  function validChangeReceipt(d,id,orderId){
+   let j=get(/databases/$(database)/documents/mealDayChanges/$(id)).data;let a=get(/databases/$(database)/documents/days/$(j.dayId)/orders/$(orderId)).data;let b=getAfter(/databases/$(database)/documents/days/$(j.dayId)/orders/$(orderId)).data;let day=get(/databases/$(database)/documents/days/$(j.dayId)).data;
+   return d.keys().hasAll(['ownerId','name','dish','quantity','price','note','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','creditAmount','createdAt','createdBy']) && d.keys().hasOnly(['ownerId','name','dish','quantity','price','note','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','creditAmount','createdAt','createdBy']) && day.changing==true && day.changeId==id && j.phase=='cancelling' && a.cancelled==true && a.paid==false && (held(a)==0 || choice(a)=='carry') && d.ownerId==a.ownerId && d.name==a.name && d.dish==a.dish && d.quantity==a.quantity && d.price==a.price && d.note==a.note && d.receivedAmount==received(a) && d.refundedAmount==refunded(a) && d.voidedAmount==voided(a) && d.creditInAmount==creditIn(a) && d.creditOutAmount==creditOut(a) && d.surplusChoice==choice(a) && d.creditAmount==held(a) && d.createdAt==request.time && d.createdBy==request.auth.uid;
+  }
+  match /mealDayChanges/{id}{
+   allow read: if admin();
+   allow create: if admin() && validDayChange(request.resource.data,id) && request.resource.data.phase=='cancelling' && request.resource.data.createdAt==request.time && request.resource.data.createdBy==request.auth.uid && request.resource.data.fromMerchantId==boundMerchant(request.resource.data.dayId) && getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)).data.changing==true && getAfter(/databases/$(database)/documents/days/$(request.resource.data.dayId)).data.changeId==id;
+   allow update: if admin() && validDayChange(request.resource.data,id) && resource.data.phase=='cancelling' && request.resource.data.phase=='completed' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase','updatedAt','completedAt']) && getAfter(/databases/$(database)/documents/days/$(resource.data.dayId)).data.changing==false && getAfter(/databases/$(database)/documents/days/$(resource.data.dayId)).data.changeId==id && getAfter(/databases/$(database)/documents/days/$(resource.data.dayId)).data.status=='open';
    allow delete: if false;
+   match /cancelledOrders/{orderId}{allow read: if admin();allow create: if admin() && validChangeReceipt(request.resource.data,id,orderId);allow update,delete: if false;}
+   match /pendingOrders/{orderId}{allow read: if admin();allow create: if admin() && request.resource.data.keys().hasAll(['ownerId','createdAt','createdBy']) && request.resource.data.keys().hasOnly(['ownerId','createdAt','createdBy']) && request.resource.data.createdBy==request.auth.uid && request.resource.data.createdAt==request.time && request.resource.data.ownerId==get(/databases/$(database)/documents/days/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId)/orders/$(orderId)).data.ownerId && get(/databases/$(database)/documents/days/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId)/orders/$(orderId)).data.cancelled==false && lockedDayChange(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId) && get(/databases/$(database)/documents/days/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId)).data.changeId==id;allow update,delete: if false;}
+   match /fulfillmentArchive/{entry}{allow read: if admin();allow create: if admin() && entry=='previous' && lockedDayChange(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId) && get(/databases/$(database)/documents/days/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId)).data.changeId==id && request.resource.data==get(/databases/$(database)/documents/merchantFulfillments/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId)).data && !existsAfter(/databases/$(database)/documents/merchantFulfillments/$(get(/databases/$(database)/documents/mealDayChanges/$(id)).data.dayId));allow update,delete: if false;}
   }
 
   match /days/{dayId}{
    allow read: if customerAccount() || merchantDayAccess(dayId);
-   allow create: if (admin() || (merchantEditor(dayId) && dayId=='day-'+request.resource.data.date && request.resource.data.status=='auto')) && dayId.matches('^[A-Za-z0-9_-]{1,100}$') && validDay(request.resource.data) && newClosure(request.resource.data);
-   allow update: if (admin() || (merchantEditor(dayId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label','menuCount','updatedAt']))) && validDay(request.resource.data) && request.resource.data.date == resource.data.date && closureChange(resource.data,request.resource.data);
+   allow create: if (admin() || (merchantEditor(dayId) && dayId=='day-'+request.resource.data.date && request.resource.data.status=='auto')) && dayId.matches('^[A-Za-z0-9_-]{1,100}$') && validDay(request.resource.data) && newClosure(request.resource.data) && !('changeId' in request.resource.data);
+   allow update: if validDay(request.resource.data) && request.resource.data.date==resource.data.date && ((admin() && (resource.data.get('changing',false)==true || request.resource.data.get('changing',false)==true) && (startingDayChange(dayId,resource.data,request.resource.data) || finishingDayChange(dayId,resource.data,request.resource.data))) || (resource.data.get('changing',false)==false && changeFieldsSame(resource.data,request.resource.data) && closureChange(resource.data,request.resource.data) && (admin() || (merchantEditor(dayId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['label','menuCount','updatedAt'])))));
    allow delete: if false;
    match /dishes/{dishId}{
     allow read: if (customerAccount() || merchantDayAccess(dayId)) && parentExists(dayId);
@@ -688,9 +717,9 @@ service cloud.firestore {
       (choice(request.resource.data)!=choice(resource.data) && (ownOrder() || admin()) && surplusChange(dayId,orderId,request.resource.data))
       || (request.resource.data.get('lastCreditTransferId','')!=resource.data.get('lastCreditTransferId','') && linkedCreditTransfer(dayId,orderId,request.resource.data))
       || (admin() && request.resource.data.get('paymentEventId','')!=resource.data.get('paymentEventId','') && financialEvent(dayId,orderId,request.resource.data))
-      || (((ownOrder() && (activeUser() || (request.resource.data.cancelled==true && request.resource.data.paid==false && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelled','paid','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','updatedAt'])))) || admin()) && openDay(dayId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dishId','dish','price','quantity','note','paid','cancelled','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','updatedAt'])
+      || (get(/databases/$(database)/documents/days/$(dayId)).data.get('changing',false)==true ? validDayJobCancellation(request.resource.data,dayId,orderId) : (((ownOrder() && (activeUser() || (request.resource.data.cancelled==true && request.resource.data.paid==false && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancelled','paid','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','updatedAt'])))) || admin()) && openDay(dayId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dishId','dish','price','quantity','note','paid','cancelled','receivedAmount','refundedAmount','voidedAmount','creditInAmount','creditOutAmount','surplusChoice','updatedAt'])
        && (samePrice(request.resource.data) || menuPrice(dayId,request.resource.data)) && correctPayment(request.resource.data))
-     ))
+     )))
     );
     allow delete: if false;
    }

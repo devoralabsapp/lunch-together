@@ -15,6 +15,7 @@ import {invalidateLinkedGroup} from './payment-group-client';
 import {assertCustomerAccount} from './portal-access';
 import {createRestaurantDay} from './merchant-day-client';
 import {dayClosureFields} from './day-closure';
+import {setMealDayStatus} from './day-status-client';
 
 export class MealClient{
  constructor(public auth:Auth,public db:Firestore,private source:Workspace){}
@@ -45,7 +46,7 @@ export class MealClient{
   await assertCustomerAccount(user,this.db);
   const [admin,daysSnapshot,payment,blocked,credits,profile]=await Promise.all([this.isAdmin(),getDocs(query(collection(this.db,'days'),orderBy('date','desc'),limit(366))),getDoc(doc(this.db,'settings','payment')),ownAccess(this),creditBalances(this),getDoc(doc(this.db,'userProfiles',user.uid))]);
   const days=new Map(this.source.days.map(d=>[d.id,d]));
-  for(const d of daysSnapshot.docs){const data=d.data();days.set(d.id,{id:d.id,date:data.date,label:data.label,menu:[],menuCount:data.menuCount,source:false,status:data.status,closedAt:data.closedAt?.toDate?.().toISOString(),dispatchId:data.dispatchId,cutoffAt:data.cutoffAt?.toDate?.().toISOString()});}
+  for(const d of daysSnapshot.docs){const data=d.data();days.set(d.id,{id:d.id,date:data.date,label:data.label,menu:[],menuCount:data.menuCount,source:false,status:data.status,changing:data.changing===true,changeId:data.changeId,closedAt:data.closedAt?.toDate?.().toISOString(),dispatchId:data.dispatchId,cutoffAt:data.cutoffAt?.toDate?.().toISOString()});}
   const now=new Date(),list=mealDays([...days.values()],now);
   for(const d of list)days.set(d.id,d);
   const selected=selectMealDay(list,dayId,now);
@@ -69,11 +70,13 @@ export class MealClient{
   if(body.action==='surplus'){if(body.choice!=='refund'&&body.choice!=='carry')throw new Error('Lựa chọn tiền thừa chưa hợp lệ.');await chooseSurplus(this,{dayId:id,orderId:String(body.id)},body.choice);return this.read(id);}
   if(body.action==='credit'){await applyCredit(this,[{dayId:id,orderId:String(body.id)}]);return this.read(id);}
   if(body.action==='order'&&body.items){const saved=await placeOrderCart(this,id,body.name,body.items);rememberOrderName(saved.name);await syncUserProfile(this,saved.name).catch(()=>{});let creditNotice='';try{await applyCredit(this,saved.orderIds.map(orderId=>({dayId:id,orderId})));}catch{creditNotice='Đơn đã lưu. Số dư chưa được trừ; sẽ thử lại khi thanh toán.';}return {...await this.read(id),creditNotice};}
+  if(body.action==='status'){await setMealDayStatus(this,id,String(body.status));return this.read(id);}
   if(body.action==='day'){
    if(!admin)throw new Error('Chỉ người quản lý được sửa thực đơn.');
    if(body.create&&body.merchantId){await createRestaurantDay(this,{date:String(body.date),merchantId:String(body.merchantId),status:String(body.status||'auto')});return this.read(id);}
    const current=await getDoc(doc(this.db,'days',id)),fallback=this.source.days.find(d=>d.id===id);
    if(body.create&&current.exists())throw new Error('Ngày này đã có thực đơn.');
+   if(current.data()?.changing===true)throw Error('Ngày đang đổi nhà hàng. Hãy hoàn tất đổi nhà hàng trước.');
    const date=String(body.date||current.data()?.date||fallback?.date||''),status=String(body.status||'auto');
    if(!validDate(date)||!['auto','open','closed'].includes(status))throw new Error('Ngày hoặc trạng thái không hợp lệ.');
    const menu=validateMenu(body.menu),old=current.exists()?(await getDocs(collection(this.db,'days',id,'dishes'))).docs:[];
@@ -81,7 +84,7 @@ export class MealClient{
    await runTransaction(this.db,async tx=>{
     const fresh=await tx.get(doc(this.db,'days',id));
     if(fresh.exists()!==current.exists()||fresh.exists()&&!fresh.data().updatedAt?.isEqual(current.data()?.updatedAt))throw Error('Thực đơn vừa thay đổi. Vui lòng tải lại.');
-    tx.set(doc(this.db,'days',id),{date,label:fresh.data()?.label||fallback?.label||`${Number(date.slice(8))}/${Number(date.slice(5,7))}`,status,menuCount:menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp(),...dayClosureFields(fresh.data(),status)});
+    tx.set(doc(this.db,'days',id),{date,label:fresh.data()?.label||fallback?.label||`${Number(date.slice(8))}/${Number(date.slice(5,7))}`,status,menuCount:menu.length,cutoffAt:Timestamp.fromDate(new Date(date+'T09:30:00+07:00')),updatedAt:serverTimestamp(),...dayClosureFields(fresh.data(),status),...(fresh.data()?.changeId?{changing:false,changeId:fresh.data()!.changeId}:{})});
     for(const d of old)if(!active.has(d.id))tx.update(d.ref,{active:false,updatedAt:serverTimestamp()});
     for(const d of dishes)tx.set(doc(this.db,'days',id,'dishes',d.id),{name:d.name,price:d.price,active:true,updatedAt:serverTimestamp()});
     appendActivity(tx,this.db,user.uid,{kind:'menu.save',summary:body.create?'Tạo thực đơn':'Sửa thực đơn hoặc giờ chốt',dayId:id,details:{date,status,menu}});

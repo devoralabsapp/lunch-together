@@ -8,11 +8,11 @@ import {merchantOrderHash} from '../lib/merchant-status';
 import {useI18n} from '../components/i18n-provider';
 const stages=[['accepted','Đã nhận đơn'],['cooking','Đang nấu'],['ready','Sẵn sàng'],['delivering','Đang giao'],['completed','Hoàn tất']] as const;
 export default function MerchantDayStatus({client,day,dayId,userId,orders}:{client:MealClient;day:Day;dayId:string;userId:string;orders:Order[]}){
- const {t}=useI18n(),[value,setValue]=useState<{name:string;state:string;note:string;hash:string;dispatchId:string}|null>(null),[phase,setPhase]=useState({status:day.status,dispatchId:day.dispatchId}),[currentHash,setCurrentHash]=useState('');
+ const {t}=useI18n(),[value,setValue]=useState<{name:string;state:string;note:string;hash:string;dispatchId:string}|null>(null),[phase,setPhase]=useState({status:day.changing?'changing':day.status,dispatchId:day.dispatchId}),[currentHash,setCurrentHash]=useState('');
  useEffect(()=>{let active=true;void merchantOrderHash(orders).then(hash=>{if(active)setCurrentHash(hash);});return()=>{active=false;};},[orders]);
- useEffect(()=>{setValue(null);setPhase({status:day.status,dispatchId:day.dispatchId});if(!userId)return;let merchantStop=()=>{},statusStop=()=>{};let name='',state='',note='',hash='',dispatchId='';
+ useEffect(()=>{setValue(null);setPhase({status:day.changing?'changing':day.status,dispatchId:day.dispatchId});if(!userId)return;let merchantStop=()=>{},statusStop=()=>{};let name='',state='',note='',hash='',dispatchId='';
   const update=()=>setValue(name?{name,state,note,hash,dispatchId}:null);
-  const parentStop=onSnapshot(doc(client.db,'days',dayId),s=>setPhase({status:s.data()?.status||'',dispatchId:s.data()?.dispatchId}),()=>setPhase({status:'',dispatchId:''}));
+  const parentStop=onSnapshot(doc(client.db,'days',dayId),s=>setPhase({status:s.data()?.changing===true?'changing':s.data()?.status||'',dispatchId:s.data()?.dispatchId}),()=>setPhase({status:'',dispatchId:''}));
   const stop=onSnapshot(doc(client.db,'merchantDays',dayId),s=>{
    merchantStop();statusStop();name='';state='';note='';hash='';dispatchId='';update();const id=s.data()?.merchantId;
    if(typeof id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(id))return;
@@ -24,6 +24,6 @@ export default function MerchantDayStatus({client,day,dayId,userId,orders}:{clie
  if(!value)return null;
  const dispatched=phase.status==='closed'&&!!phase.dispatchId,current=dispatched&&phase.dispatchId===value.dispatchId,changed=current&&value.hash&&currentHash&&value.hash!==currentHash;
  const index=current?stages.findIndex(([state])=>state===value.state):-1;
- const label=!dispatched?'Chờ quản trị chốt đơn gửi nhà hàng':changed?'Đơn đã cập nhật, chờ nhà hàng xác nhận lại':stages[index]?.[1]||'Chờ nhà hàng nhận đơn';
+ const label=phase.status==='changing'?'Ngày đang đổi nhà hàng, tạm dừng đặt cơm.':!dispatched?'Chờ quản trị chốt đơn gửi nhà hàng':changed?'Đơn đã cập nhật, chờ nhà hàng xác nhận lại':stages[index]?.[1]||'Chờ nhà hàng nhận đơn';
  return <section className="merchant-day-status" role="status"><ChefHat size={21}/><div><strong>{value.name}</strong><span>{t(label)}</span>{dispatched?<ol className="merchant-progress">{stages.map(([state,text],i)=><li key={state} className={i<=index&&!changed?'done':''} aria-current={i===index&&!changed?'step':undefined}>{t(text)}</li>)}</ol>:null}{current&&value.note?<small>{value.note}</small>:null}</div></section>;
 }

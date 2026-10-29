@@ -1,3 +1,4 @@
+import {mealDayChangeCases} from './meal-day-change.cases';
 import {exportBackupApi,verifyBackupApi} from '../lib/personal-backup-api';
 import {applyCredit,chooseSurplus,creditBalances,CreditCoveredError} from '../lib/credit-client';
 import {activityValue,recordActivity} from '../lib/activity';
@@ -678,5 +679,6 @@ test('Web SDK and Security Rules enforce the complete meal flow',{timeout:240000
    const chunk={index:0,data:'valid',createdAt:serverTimestamp()};await assertFails(setDoc(doc(recipient.db,'personalImports',id,'chunks','0'),chunk));await assertFails(setDoc(doc(owner.db,'personalImports',id,'chunks','1'),{...chunk,index:1}));await assertFails(setDoc(doc(owner.db,'personalImports',id,'chunks','0'),{...chunk,data:'x'.repeat(150001)}));await assertFails(setDoc(doc(owner.db,'personalImports',uid+'~'+'e'.repeat(64),'chunks','0'),chunk));
    await setDoc(doc(owner.db,'personalImports',id,'chunks','0'),chunk);await updateDoc(ref,{state:'ready',updatedAt:serverTimestamp()});await assert.rejects(readImportedBackup(owner,id),/chưa đầy đủ/);
   });
+  await mealDayChangeCases(t,admin,client,environment);
  }finally{const coverage=await fetch(`http://${host}:${port}/emulator/v1/projects/${project}:ruleCoverage`);fs.mkdirSync('.firebase',{recursive:true});fs.writeFileSync('.firebase/rules-coverage.json',await coverage.text());await Promise.all(databases.map(db=>terminate(db)));await Promise.all(apps.map(app=>deleteApp(app)));await environment.cleanup();}
 });
