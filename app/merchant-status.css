@@ -1,5 +1,18 @@
-.merchant-day-status{display:flex;gap:12px;align-items:center;padding:14px 18px;margin:0 0 22px;border:1px solid var(--line);border-radius:14px;background:var(--theme-soft,#edf7ee);color:var(--green,#255c46)}
-.merchant-day-status strong{display:block;font-size:14px}.merchant-day-status span{font-size:13px}.merchant-day-status small{display:block;font-size:12px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
-html[data-theme=retro] .merchant-day-status{border:2px solid #20251f;background:#b9e8cb;box-shadow:4px 4px 0 #20251f;color:#20251f}
-
-.merchant-day-status>div{min-width:0}.merchant-progress{display:flex;flex-wrap:wrap;gap:8px 16px;padding:0;margin:10px 0 0;list-style:none}.merchant-progress li{font-size:12px;opacity:.6}.merchant-progress li::before{content:'○';margin-right:5px}.merchant-progress li.done{font-weight:700;opacity:1}.merchant-progress li.done::before{content:'●'}.merchant-progress li[aria-current=step]{text-decoration:underline;text-underline-offset:4px}.closure-help{display:block;margin-top:10px;color:var(--muted);font-size:12px}
+.merchant-day-status{display:flex;gap:12px;align-items:flex-start;padding:18px;margin:0 0 22px;border:1px solid var(--line);border-radius:14px;background:var(--theme-surface,#fff);color:var(--ink);--merchant-step-fill:#b9e8cb}
+.merchant-day-status>svg{margin-top:2px;color:var(--green)}
+.merchant-day-status>div{flex:1;min-width:0}
+.merchant-day-status .merchant-restaurant-name{display:block;font-size:calc(12px + var(--text-size-offset,1px));font-weight:600;color:var(--muted);overflow-wrap:anywhere}
+.merchant-day-status .merchant-status-title{display:block;margin-top:4px;font-size:calc(19px + var(--text-size-offset,1px));font-weight:800;line-height:1.4;overflow-wrap:anywhere}
+.merchant-day-status small{display:block;font-size:calc(11px + var(--text-size-offset,1px));margin-top:14px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.merchant-progress{display:flex;padding:0;margin:22px 0 3px;list-style:none}
+.merchant-progress li{position:relative;display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;gap:7px;text-align:center}
+.merchant-progress li::before{content:'';position:absolute;inset:15px 0 auto;height:2px;background:var(--merchant-step-line,var(--line))}
+.merchant-progress .merchant-progress-marker{position:relative;z-index:1;display:grid;place-items:center;width:30px;height:30px;flex-shrink:0;border:1.5px solid var(--muted);border-radius:50%;background:var(--theme-surface,#fff);color:var(--ink);font-size:calc(10px + var(--text-size-offset,1px));font-weight:800}
+.merchant-progress .merchant-progress-label{display:block;padding:0 4px;font-size:calc(10px + var(--text-size-offset,1px));line-height:1.5;overflow-wrap:anywhere}
+.merchant-progress li.done::before{background:var(--ink)}
+.merchant-progress li.done .merchant-progress-marker{border-color:var(--ink);background:var(--merchant-step-fill)}
+.merchant-progress li[aria-current=step] .merchant-progress-label{font-weight:800}
+html[data-theme=retro] .merchant-day-status{border:2px solid var(--retro-ink,#20251f);background:var(--theme-surface);box-shadow:4px 4px 0 var(--retro-ink,#20251f);--merchant-step-line:#d9d4c7}
+html:is([data-theme=terminal],[data-theme=code],[data-theme=midnight]) .merchant-day-status{--merchant-step-fill:var(--pale)}
+.closure-help{display:block;margin-top:10px;color:var(--muted);font-size:12px}
+@media(max-width:480px){.merchant-day-status{padding:15px 10px}.merchant-day-status>svg{display:none}.merchant-day-status .merchant-status-title{font-size:calc(17px + var(--text-size-offset,1px))}.merchant-progress .merchant-progress-label{padding-inline:0;font-size:calc(9px + var(--text-size-offset,1px))}}
