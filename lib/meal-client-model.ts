@@ -4,7 +4,7 @@ export function localNow(now=new Date()){
  const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value]));
  return {date:`${p.year}-${p.month}-${p.day}`,minutes:Number(p.hour)*60+Number(p.minute)};
 }
-export function isLocked(day:Day){if(day.status==='closed')return true;if(day.status==='open')return false;const now=localNow();return day.date<now.date||(day.date===now.date&&now.minutes>=570);}
+export function isLocked(day:Day){if(day.changing||day.status==='closed')return true;if(day.status==='open')return false;const now=localNow();return day.date<now.date||(day.date===now.date&&now.minutes>=570);}
 export function cleanName(value:unknown){return String(value||'').normalize('NFC').trim();}
 export async function nameId(name:string){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(name.toLowerCase()));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');}
 export const validOrderId=(id:string)=>/^[a-f0-9]{64}(?:_(?:[1-9]|[12][0-9]|30))?$/.test(id);
